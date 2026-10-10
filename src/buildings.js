@@ -7,20 +7,27 @@ export const pick = a => a[Math.floor(rnd() * a.length)];
 
 
 export function windowTextures() {
+  // 4x4 atlas of Victorian sash windows (cell = 3.5 m wide x 3.1 m storey). Albedo is near-white brick so vertex colours tint it.
+  const N = 512, C = N / 4;
   const mk = lit => {
-    const cv = document.createElement('canvas'); cv.width = cv.height = 256;
+    const cv = document.createElement('canvas'); cv.width = cv.height = N;
     const x = cv.getContext('2d');
-    x.fillStyle = lit ? '#000' : '#ffffff'; x.fillRect(0, 0, 256, 256);
+    x.fillStyle = lit ? '#000' : '#ffffff'; x.fillRect(0, 0, N, N);
     if (!lit) { // brick courses
-      for (let y = 0; y < 256; y += 4) { x.fillStyle = '#d9d9d9'; x.fillRect(0, y, 256, 1); for (let xx = (y / 4) % 2 ? 0 : 6; xx < 256; xx += 12) x.fillRect(xx, y, 1, 4); }
+      x.fillStyle = '#d4d4d4'; for (let y = 0; y < N; y += 6) { x.fillRect(0, y, N, 1); for (let xx = (y / 6) % 2 ? 0 : 9; xx < N; xx += 18) x.fillRect(xx, y, 1, 6); }
     }
     for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) {
-      const on = (i * 7 + j * 13 + (i ^ j) * 3) % 7 < 2; // fixed pattern; per-face offsets vary it
-      const px = i * 64 + 20, py = j * 64 + 14;
-      if (lit) { if (on) { x.fillStyle = '#ffb347'; x.fillRect(px, py, 24, 34); } }
-      else {
-        x.fillStyle = '#f2f2f2'; x.fillRect(px - 3, py - 3, 30, 3); x.fillRect(px - 3, py + 34, 30, 4); // sill + lintel
-        x.fillStyle = '#121a24'; x.fillRect(px, py, 24, 34); x.fillStyle = '#3a4656'; x.fillRect(px, py + 16, 24, 2); x.fillRect(px + 11, py, 2, 34);
+      const on = (i * 7 + j * 13 + (i ^ j) * 3) % 7 < 2, ox = i * C, oy = j * C, wx = ox + 36, wy = oy + 18, ww = 56, wh = 78;
+      if (lit) {
+        if (on) { const g = x.createLinearGradient(0, wy, 0, wy + wh); g.addColorStop(0, '#ffcf80'); g.addColorStop(1, '#ff9a4a'); x.fillStyle = g; x.fillRect(wx, wy, ww, wh); x.fillStyle = '#000'; x.fillRect(wx + ww / 2 - 1, wy, 2, wh); x.fillRect(wx, wy + wh * 0.42, ww, 2); }
+      } else {
+        x.fillStyle = '#e7e0cf'; x.fillRect(wx - 7, wy - 14, ww + 14, 10);                 // stone lintel
+        x.fillStyle = '#d6cdb6'; x.beginPath(); x.moveTo(wx - 4, wy - 4); x.quadraticCurveTo(wx + ww / 2, wy - 20, wx + ww + 4, wy - 4); x.lineTo(wx + ww + 4, wy); x.lineTo(wx - 4, wy); x.fill(); // segmental arch
+        x.fillStyle = '#efe9d8'; x.fillRect(wx - 6, wy + wh, ww + 12, 7);                  // sill
+        x.fillStyle = '#f4f0e4'; x.fillRect(wx - 3, wy - 3, ww + 6, wh + 6);                // frame
+        x.fillStyle = '#111923'; x.fillRect(wx, wy, ww, wh);                                 // glass
+        x.fillStyle = '#f4f0e4'; x.fillRect(wx + ww / 2 - 1.5, wy, 3, wh); x.fillRect(wx, wy + wh * 0.42, ww, 3);  // glazing bars
+        x.fillStyle = 'rgba(120,150,190,0.25)'; x.fillRect(wx, wy, ww, wh * 0.4);            // sky reflection
       }
     }
     const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace;

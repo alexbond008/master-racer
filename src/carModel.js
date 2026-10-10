@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { resolveMods } from './customs.js';
+import { getCarModel } from './models.js';
 
 // Procedural car built from extruded side profiles. Front = +z, origin at ground centre.
 // opts: { color, lite (AI car: fewer meshes), headlights (player spotlights), player }
@@ -20,6 +21,7 @@ function extrudeProfile(pts, width) {
 function cached(key, fn) { let g = geoCache.get(key); if (!g) { g = fn(); geoCache.set(key, g); } return g; }
 
 export function buildCar(def, opts = {}) {
+  if (!opts.procedural && getCarModel(def.id)) return buildGlbCar(def, opts);
   const root = new THREE.Group();
   const mods = resolveMods(def, opts.mods);
   const paint = makePaint(opts.color || mods.color, mods.finish);
@@ -128,7 +130,7 @@ function addBusBody(root, def, paint) { // double-decker: red slab, two window b
   const dest = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.35), new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 1.6, 0.2) })); dest.position.set(0, 4.05, L / 2 + 0.01); root.add(dest);
 }
 
-function makePaint(color, finish) {
+export function makePaint(color, finish) {
   const c = new THREE.Color(color);
   if (finish === 'matte') return new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.85, metalness: 0.08, clearcoat: 0 });
   if (finish === 'metallic') return new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.18, metalness: 0.95, clearcoat: 1, clearcoatRoughness: 0.05 });
@@ -225,4 +227,54 @@ export function updateCarModel(model, phys, dt, time = performance.now() * 0.001
   if (model.userData.tailMat) model.userData.tailMat.emissiveIntensity = phys.braking ? 6 : 1.2;
   const bars = model.userData.bars;
   if (bars) { const on = Math.floor(time * 7) % 2 === 0; bars.red.visible = on; bars.blue.visible = !on; }
+}
+
+
+// ---------------- Blender-made car (GLB): recolourable Paint/Rim, spinning + steering wheels, flashing police bars
+function buildGlbCar(def, opts) {
+  const src = getCarModel(def.id), inner = src.clone(true), root = new THREE.Group(), mods = resolveMods(def, opts.mods);
+  const bb = new THREE.Box3().setFromObject(inner), size = bb.getSize(new THREE.Vector3()), s = def.L / size.z;
+  inner.scale.setScalar(s); inner.position.set(-(bb.min.x + bb.max.x) / 2 * s, -bb.min.y * s, -(bb.min.z + bb.max.z) / 2 * s);
+  root.add(inner); root.updateMatrixWorld(true);
+  const paint = makePaint(opts.color || mods.color, mods.finish), wheels = [], H = size.y * s, W = size.x * s, L = def.L;
+  const mats = new Map(), inst = m => { if (!mats.has(m)) mats.set(m, m.clone()); return mats.get(m); };
+  let tail = null, rimR = 0.32;
+  inner.traverse(o => {
+    if (o.isMesh) {
+      const list = Array.isArray(o.material) ? o.material : [o.material];
+      const out = list.map(m => {
+        if (m.name === 'Paint') return paint;
+        if (m.name === 'Rim') { const r = inst(m); r.color.set(mods.rim); return r; }
+        if (m.name === 'TailLight') { tail = inst(m); return tail; }
+        return m;
+      });
+      o.material = Array.isArray(o.material) ? out : out[0];
+    }
+    if (/^wheel_(fl|fr|rl|rr)$/.test(o.name)) {
+      o.rotation.order = 'YXZ';
+      const wb = new THREE.Box3().setFromObject(o); rimR = (wb.max.y - wb.min.y) / 2;
+      wheels.push({ pivot: o, spin: o, front: o.name.startsWith('wheel_f') });
+    }
+    if (o.name === 'lightbar_red' || o.name === 'lightbar_blue') (root.userData.bars ||= {})[o.name === 'lightbar_red' ? 'red' : 'blue'] = o;
+    if (o.name === 'spoiler') root.userData.glbSpoiler = o;
+  });
+  root.userData.wheels = wheels; root.userData.wheelR = rimR;           // already in world units (inner scale applied via setFromObject)
+  root.userData.paint = paint; root.userData.tailMat = tail;
+  // dims for decals / body kits / neon on a model whose proportions differ from the procedural profile
+  const dims = { ...def, L, W, beltY: H * 0.6, hoodY: H * 0.52, tailY: H * 0.62, noseY: H * 0.38, gc: 0.12 };
+  if (!opts.lite) {
+    if (mods.spoilerType === 'none' && root.userData.glbSpoiler) root.userData.glbSpoiler.visible = false;
+    else if (mods.spoiler !== 'stock') { if (root.userData.glbSpoiler) root.userData.glbSpoiler.visible = false; addSpoiler(root, dims, mods.spoilerType, paint); }
+    addKit(root, dims, mods.kit, paint);
+    if (mods.liveryType !== 'none' && !def.police) addLivery(root, dims, mods.liveryType, mods.liveryColor);
+    if (mods.neon !== 'off') addNeon(root, dims, mods.neon);
+  }
+  if (opts.headlights) {
+    for (const sx of [-1, 1]) {
+      const sp = new THREE.SpotLight(0xfff0d0, 90, 70, 0.5, 0.6, 1.4);
+      sp.position.set(sx * W * 0.3, H * 0.38, L / 2); sp.target.position.set(sx * W * 0.3, 0, L / 2 + 15);
+      root.add(sp, sp.target); (root.userData.spots ||= []).push(sp);
+    }
+  }
+  return root;
 }

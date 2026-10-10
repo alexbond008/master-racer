@@ -1,513 +1,259 @@
-"""Shared helpers for procedural landmark models (Blender 5.x, headless).
-
-Usage in a model script:
-    import sys, os; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from lm_common import *
-    B = Builder()
-    B.box(...); ...
-    finish(B, 'academy', footprint=[w, d], notes='...', cams=[...])
-Everything is one object per material; names are Mat names.
-"""
-import bpy, bmesh, math, os, json, sys
+"""Shared helpers for landmark models (bpy). Run via: blender -b --python <script>.py
+Everything is built from raw verts/faces per material, in WORLD frame (Blender XY metres, origin = footprint
+centroid, street toward -Y). `Frame` lets a part be built in an oriented local frame."""
+import bpy, bmesh, math, json, os, random, sys
 from mathutils import Vector, Matrix
 
 ROOT = os.path.expanduser('~/Projects/master-racer')
-OUT_DIR = os.path.join(ROOT, 'public/models/landmarks')
-PREV_DIR = os.path.join(ROOT, 'blender/previews')
+FP = json.load(open(ROOT + '/blender/landmark_footprints.json'))
 
-_MATS = {}
+def srgb(r, g, b):
+    f = lambda c: ((c / 255 + 0.055) / 1.055) ** 2.4 if c / 255 > 0.04045 else c / 255 / 12.92
+    return (f(r), f(g), f(b), 1.0)
 
-
-def reset_scene():
-    bpy.ops.wm.read_factory_settings(use_empty=True)
-    _MATS.clear()
-
-
-def mat(name, color, rough=0.7, metal=0.0, emit=None, strength=4.0, alpha=None):
-    """Principled BSDF with plain colour. emit=(r,g,b) -> emissive."""
-    if name in _MATS:
-        return _MATS[name]
+_mats = {}
+def mat(name, rgb, rough=0.6, metal=0.0, emit=None, strength=4.0, alpha=None):
+    """rgb in sRGB 0-255. emit = sRGB colour tuple for emission."""
+    if name in _mats: return _mats[name]
     m = bpy.data.materials.new(name)
     m.use_nodes = True
-    nt = m.node_tree
-    bsdf = nt.nodes.get('Principled BSDF')
-    c = tuple(color) + (1.0,) if len(color) == 3 else tuple(color)
-    bsdf.inputs['Base Color'].default_value = c
+    bsdf = m.node_tree.nodes['Principled BSDF']
+    bsdf.inputs['Base Color'].default_value = srgb(*rgb)
     bsdf.inputs['Roughness'].default_value = rough
     bsdf.inputs['Metallic'].default_value = metal
     if emit is not None:
-        bsdf.inputs['Emission Color'].default_value = tuple(emit) + (1.0,)
+        bsdf.inputs['Emission Color'].default_value = srgb(*emit)
         bsdf.inputs['Emission Strength'].default_value = strength
     if alpha is not None:
         bsdf.inputs['Alpha'].default_value = alpha
-        m.surface_render_method = 'BLENDED'
-    _MATS[name] = m
+        m.blend_method = 'BLEND' if hasattr(m, 'blend_method') else None
+    _mats[name] = m
     return m
 
+def reset():
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    _mats.clear()
 
-def hexc(h):
-    h = h.lstrip('#')
-    r, g, b = [int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4)]
-    # sRGB -> linear
-    f = lambda c: (c / 12.92) if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
-    return (f(r), f(g), f(b))
+class Frame:
+    def __init__(s, ox=0, oy=0, ang_deg=0, oz=0):
+        s.ox, s.oy, s.oz = ox, oy, oz
+        a = math.radians(ang_deg); s.c, s.s = math.cos(a), math.sin(a)
+    def p(s, x, y, z=0):
+        return (s.ox + x * s.c - y * s.s, s.oy + x * s.s + y * s.c, s.oz + z)
 
-
-class Builder:
-    """Collects triangles/quads per material; supports a 2D rotate+translate transform stack."""
-
-    def __init__(self):
-        self.geo = {}  # matname -> (verts, faces, smooth flags)
-        self.mats = {}
-        self._xf = [(0.0, 0.0, 0.0, 1.0)]  # (rot_z, tx, ty, tz) -- applied as rotate then translate
-
-    # ---- transform ----
-    def push(self, rot=0.0, tx=0.0, ty=0.0, tz=0.0):
-        self._xf.append((rot, tx, ty, tz))
-
-    def pop(self):
-        self._xf.pop()
-
-    def _t(self, p):
-        x, y, z = p
-        for rot, tx, ty, tz in reversed(self._xf[1:]):
-            c, s = math.cos(rot), math.sin(rot)
-            x, y = x * c - y * s + tx, x * s + y * c + ty
-            z = z + tz
-        return (x, y, z)
-
-    # ---- low level ----
-    def _g(self, m):
-        if isinstance(m, str):
-            raise ValueError('pass a material object')
-        n = m.name
-        if n not in self.geo:
-            self.geo[n] = ([], [], [])
-            self.mats[n] = m
-        return self.geo[n]
-
-    def face(self, pts, m, smooth=False):
-        v, f, s = self._g(m)
-        base = len(v)
-        for p in pts:
-            v.append(self._t(p))
-        f.append(tuple(range(base, base + len(pts))))
-        s.append(smooth)
-
-    def quad(self, a, b, c, d, m, smooth=False):
-        self.face([a, b, c, d], m, smooth)
-
-    # ---- primitives (all in local frame; z0 base) ----
-    def box(self, cx, cy, z0, sx, sy, sz, m, rot=0.0, bottom=False):
-        """Axis box centred at cx,cy; sizes sx (X), sy (Y), sz (Z up from z0). rot about its own centre."""
-        c, s = math.cos(rot), math.sin(rot)
-        hx, hy = sx / 2, sy / 2
-        corners = []
-        for dx, dy in ((-hx, -hy), (hx, -hy), (hx, hy), (-hx, hy)):
-            corners.append((cx + dx * c - dy * s, cy + dx * s + dy * c))
-        self.prism(corners, z0, z0 + sz, m, bottom=bottom)
-
-    def prism(self, poly, z0, z1, m, bottom=False, top=True, smooth=False):
-        """Extrude CCW (or CW; auto-fixed) polygon between z0 and z1. Sides + optional top/bottom caps."""
-        poly = list(poly)
-        if _area(poly) < 0:
-            poly.reverse()
-        n = len(poly)
-        for i in range(n):
-            a, b = poly[i], poly[(i + 1) % n]
-            self.face([(a[0], a[1], z0), (b[0], b[1], z0), (b[0], b[1], z1), (a[0], a[1], z1)], m, smooth)
-        if top:
-            self._cap(poly, z1, m, up=True)
-        if bottom:
-            self._cap(poly, z0, m, up=False)
-
-    def _cap(self, poly, z, m, up=True):
-        pts = [(p[0], p[1], z) for p in poly]
-        tris = _triangulate(poly)
-        for a, b, c in tris:
-            if up:
-                self.face([pts[a], pts[b], pts[c]], m)
-            else:
-                self.face([pts[a], pts[c], pts[b]], m)
-
-    def frustum(self, cx, cy, z0, z1, r0, r1, m, segs=24, cap_top=True, cap_bottom=False, smooth=True,
-                rot=0.0, sx=1.0, sy=1.0):
-        """Cylinder / cone / tapering tower. r0 at z0, r1 at z1. sx/sy squash for ellipses."""
-        for i in range(segs):
-            a0 = rot + 2 * math.pi * i / segs
-            a1 = rot + 2 * math.pi * (i + 1) / segs
-            p = lambda a, r, z: (cx + math.cos(a) * r * sx, cy + math.sin(a) * r * sy, z)
-            if r1 > 1e-6:
-                self.face([p(a0, r0, z0), p(a1, r0, z0), p(a1, r1, z1), p(a0, r1, z1)], m, smooth)
-            else:
-                self.face([p(a0, r0, z0), p(a1, r0, z0), (cx, cy, z1)], m, smooth)
-        if cap_top and r1 > 1e-6:
-            self.face([(cx + math.cos(rot + 2 * math.pi * i / segs) * r1 * sx,
-                        cy + math.sin(rot + 2 * math.pi * i / segs) * r1 * sy, z1) for i in range(segs)], m)
-        if cap_bottom:
-            self.face([(cx + math.cos(rot - 2 * math.pi * i / segs) * r0 * sx,
-                        cy + math.sin(rot - 2 * math.pi * i / segs) * r0 * sy, z0) for i in range(segs)], m)
-
-    def dome(self, cx, cy, z0, r, m, segs=24, rings=8, hz=None, a_from=0.0, a_to=2 * math.pi, sx=1, sy=1):
-        """Hemisphere (hz = height scale: z-radius). Optional angular wedge for half domes."""
-        hz = r if hz is None else hz
-        n = segs
-        for j in range(rings):
-            t0 = (math.pi / 2) * j / rings
-            t1 = (math.pi / 2) * (j + 1) / rings
-            for i in range(n):
-                a0 = a_from + (a_to - a_from) * i / n
-                a1 = a_from + (a_to - a_from) * (i + 1) / n
-                P = lambda a, t: (cx + math.cos(a) * math.cos(t) * r * sx, cy + math.sin(a) * math.cos(t) * r * sy,
-                                  z0 + math.sin(t) * hz)
-                if j == rings - 1:
-                    self.face([P(a0, t0), P(a1, t0), P(a1, t1)], m, True)
-                else:
-                    self.face([P(a0, t0), P(a1, t0), P(a1, t1), P(a0, t1)], m, True)
-
-    def sphere(self, cx, cy, cz, r, m, segs=12, rings=8):
-        for j in range(rings):
-            t0 = -math.pi / 2 + math.pi * j / rings
-            t1 = -math.pi / 2 + math.pi * (j + 1) / rings
-            for i in range(segs):
-                a0 = 2 * math.pi * i / segs
-                a1 = 2 * math.pi * (i + 1) / segs
-                P = lambda a, t: (cx + math.cos(a) * math.cos(t) * r, cy + math.sin(a) * math.cos(t) * r,
-                                  cz + math.sin(t) * r)
-                if j == 0:
-                    self.face([P(a0, t0), P(a1, t1), P(a0, t1)], m, True) if False else self.face(
-                        [P(a0, t0), P(a1, t1), P(a0, t1)], m, True)
-                elif j == rings - 1:
-                    self.face([P(a0, t0), P(a1, t0), P(a0, t1)], m, True)
-                else:
-                    self.face([P(a0, t0), P(a1, t0), P(a1, t1), P(a0, t1)], m, True)
-
-    def arch_prism(self, x0, x1, y, z0, spring_z, depth, m, segs=10, flat_front=True):
-        """Solid arch-shaped (round-headed) slab: width x0..x1, front face at y, thickness depth (+y). Used for
-        glow panels / door shutters. Rect lower part to spring_z then semicircle."""
-        w = x1 - x0
-        r = w / 2
-        cx = (x0 + x1) / 2
-        pts = [(x0, z0), (x1, z0), (x1, spring_z)]
-        for i in range(1, segs):
-            a = math.pi * i / segs
-            pts.append((cx + math.cos(a) * r, spring_z + math.sin(a) * r))
-        pts.append((x0, spring_z))
-        self.vprism(pts, y, depth, m)
-
-    def vprism(self, pts_xz, y, depth, m, smooth=False):
-        """Extrude a polygon given in (x,z) in the XZ plane, from y to y+depth (front face towards -Y)."""
-        pts = list(pts_xz)
-        if _area(pts) < 0:
-            pts.reverse()
+class B:
+    """Mesh builder. Collects faces per material name."""
+    def __init__(s):
+        s.d = {}      # mat -> (verts, faces)
+        s.f = Frame()
+    def frame(s, ox=0, oy=0, ang=0, oz=0):
+        s.f = Frame(ox, oy, ang, oz); return s
+    def _g(s, m):
+        if m not in s.d: s.d[m] = ([], [])
+        return s.d[m]
+    def poly(s, m, pts_local):
+        """one ngon face, pts in local frame (x,y,z); winding as given"""
+        v, f = s._g(m)
+        i = len(v)
+        for p in pts_local: v.append(s.f.p(*p))
+        f.append(tuple(range(i, i + len(pts_local))))
+    def quad(s, m, a, b, c, d): s.poly(m, [a, b, c, d])
+    def box(s, m, x0, x1, y0, y1, z0, z1, top=True, bottom=True):
+        if x1 < x0: x0, x1 = x1, x0
+        if y1 < y0: y0, y1 = y1, y0
+        P = lambda x, y, z: (x, y, z)
+        s.quad(m, P(x0,y0,z0), P(x1,y0,z0), P(x1,y0,z1), P(x0,y0,z1))   # -y
+        s.quad(m, P(x1,y1,z0), P(x0,y1,z0), P(x0,y1,z1), P(x1,y1,z1))   # +y
+        s.quad(m, P(x0,y1,z0), P(x0,y0,z0), P(x0,y0,z1), P(x0,y1,z1))   # -x
+        s.quad(m, P(x1,y0,z0), P(x1,y1,z0), P(x1,y1,z1), P(x1,y0,z1))   # +x
+        if top: s.quad(m, P(x0,y0,z1), P(x1,y0,z1), P(x1,y1,z1), P(x0,y1,z1))
+        if bottom: s.quad(m, P(x0,y1,z0), P(x1,y1,z0), P(x1,y0,z0), P(x0,y0,z0))
+    def prism(s, m, pts, z0, z1, top=True, bottom=True):
+        """extrude 2D polygon (local xy); any winding"""
+        a = sum(pts[i][0]*pts[(i+1)%len(pts)][1]-pts[(i+1)%len(pts)][0]*pts[i][1] for i in range(len(pts)))
+        if a < 0: pts = pts[::-1]
         n = len(pts)
-        # front (-Y facing): triangulate
-        tris = _triangulate(pts)
-        for a, b, c in tris:
-            # xz ccw viewed from -y? polygon ccw in (x,z) seen from front (-Y looking +Y) -> normal -Y when
-            # winding (x,z) ccw viewed from -y side ... verified: x right, z up, viewer at -y => ccw is CCW
-            self.face([(pts[a][0], y, pts[a][1]), (pts[b][0], y, pts[b][1]), (pts[c][0], y, pts[c][1])], m)
-        if depth > 0:
-            for a, b, c in tris:
-                self.face([(pts[a][0], y + depth, pts[a][1]), (pts[c][0], y + depth, pts[c][1]),
-                           (pts[b][0], y + depth, pts[b][1])], m)
+        for i in range(n):
+            p, q = pts[i], pts[(i+1)%n]
+            s.quad(m, (p[0],p[1],z0), (q[0],q[1],z0), (q[0],q[1],z1), (p[0],p[1],z1))
+        if top: s.poly(m, [(p[0],p[1],z1) for p in pts])
+        if bottom: s.poly(m, [(p[0],p[1],z0) for p in pts[::-1]])
+    def cyl(s, m, cx, cy, z0, z1, r, n=10, r1=None, cap=True):
+        r1 = r if r1 is None else r1
+        for i in range(n):
+            a0, a1 = 2*math.pi*i/n, 2*math.pi*(i+1)/n
+            s.quad(m, (cx+r*math.cos(a0),cy+r*math.sin(a0),z0), (cx+r*math.cos(a1),cy+r*math.sin(a1),z0),
+                      (cx+r1*math.cos(a1),cy+r1*math.sin(a1),z1), (cx+r1*math.cos(a0),cy+r1*math.sin(a0),z1))
+        if cap:
+            s.poly(m, [(cx+r1*math.cos(2*math.pi*i/n),cy+r1*math.sin(2*math.pi*i/n),z1) for i in range(n)])
+            s.poly(m, [(cx+r*math.cos(-2*math.pi*i/n),cy+r*math.sin(-2*math.pi*i/n),z0) for i in range(n)])
+    def pyramid(s, m, x0, x1, y0, y1, z0, z1, ax=None, ay=None):
+        ax = (x0+x1)/2 if ax is None else ax; ay = (y0+y1)/2 if ay is None else ay
+        A=(x0,y0,z0);Bq=(x1,y0,z0);C=(x1,y1,z0);D=(x0,y1,z0);T=(ax,ay,z1)
+        s.poly(m,[A,Bq,T]); s.poly(m,[Bq,C,T]); s.poly(m,[C,D,T]); s.poly(m,[D,A,T])
+        s.poly(m,[D,C,Bq,A])
+    def gable(s, m, x0, x1, y0, y1, z0, z1, along='y', overhang=0.0):
+        """pitched roof. ridge runs along 'y' (gable ends at y0,y1 sides -> triangles on y faces) or 'x'"""
+        if along == 'y':
+            xm = (x0+x1)/2
+            s.poly(m,[(x0,y0,z0),(x1,y0,z0),(x1,y1,z0),(x0,y1,z0)][::-1])
+            s.poly(m,[(x0,y0,z0),(xm,y0,z1),(xm,y1,z1),(x0,y1,z0)][::-1]); 
+            s.poly(m,[(x1,y0,z0),(x1,y1,z0),(xm,y1,z1),(xm,y0,z1)])
+            s.poly(m,[(x0,y0,z0),(x1,y0,z0),(xm,y0,z1)])
+            s.poly(m,[(x1,y1,z0),(x0,y1,z0),(xm,y1,z1)])
+        else:
+            ym = (y0+y1)/2
+            s.poly(m,[(x0,y0,z0),(x1,y0,z0),(x1,y1,z0),(x0,y1,z0)][::-1])
+            s.poly(m,[(x0,y0,z0),(x1,y0,z0),(x1,ym,z1),(x0,ym,z1)])
+            s.poly(m,[(x1,y1,z0),(x0,y1,z0),(x0,ym,z1),(x1,ym,z1)])
+            s.poly(m,[(x0,y1,z0),(x0,y0,z0),(x0,ym,z1)])
+            s.poly(m,[(x1,y0,z0),(x1,y1,z0),(x1,ym,z1)])
+    def beam(s, m, p0, p1, w=0.2, h=None, n=None):
+        """square (or round if n) member between two LOCAL points"""
+        h = w if h is None else h
+        p0 = Vector(p0); p1 = Vector(p1); d = p1 - p0; L = d.length
+        if L < 1e-6: return
+        d.normalize()
+        up = Vector((0,0,1)) if abs(d.z) < 0.99 else Vector((1,0,0))
+        u = d.cross(up).normalized(); v = d.cross(u).normalized()
+        if n:
+            ring0 = [p0 + (u*math.cos(2*math.pi*i/n) + v*math.sin(2*math.pi*i/n))*w for i in range(n)]
+            ring1 = [q + d*L for q in ring0]
             for i in range(n):
-                a, b = pts[i], pts[(i + 1) % n]
-                # side faces: outward normal for ccw (x,z) polygon seen from -y.
-                self.face([(a[0], y + depth, a[1]), (b[0], y + depth, b[1]), (b[0], y, b[1]), (a[0], y, a[1])], m,
-                          smooth)
-
-
-    def obox(self, c, ex, ey, ez, sx, sy, sz, m, smooth=False):
-        """Oriented box: centre c, unit axes ex,ey,ez (tuples), full sizes sx,sy,sz."""
-        def P(a, b, d):
-            return (c[0] + ex[0] * a * sx / 2 + ey[0] * b * sy / 2 + ez[0] * d * sz / 2,
-                    c[1] + ex[1] * a * sx / 2 + ey[1] * b * sy / 2 + ez[1] * d * sz / 2,
-                    c[2] + ex[2] * a * sx / 2 + ey[2] * b * sy / 2 + ez[2] * d * sz / 2)
-        q = lambda *idx: self.face([P(*i) for i in idx], m, smooth)
-        q((-1, -1, -1), (-1, 1, -1), (1, 1, -1), (1, -1, -1))
-        q((-1, -1, 1), (1, -1, 1), (1, 1, 1), (-1, 1, 1))
-        q((-1, -1, -1), (1, -1, -1), (1, -1, 1), (-1, -1, 1))
-        q((1, -1, -1), (1, 1, -1), (1, 1, 1), (1, -1, 1))
-        q((1, 1, -1), (-1, 1, -1), (-1, 1, 1), (1, 1, 1))
-        q((-1, 1, -1), (-1, -1, -1), (-1, -1, 1), (-1, 1, 1))
-
-    def loft(self, rings, m, smooth=True, closed=False, cap_start=True, cap_end=True):
-        """rings: list of rings, each a list of 3D points (same length). Connect consecutive rings.
-        closed=True treats each ring as a closed loop. Winding: ring order must be CCW seen from outside
-        looking along loft direction... caller checks visually; double-sided fix via flip flag not provided."""
-        n = len(rings[0])
-        for k in range(len(rings) - 1):
-            a, b = rings[k], rings[k + 1]
-            rng = range(n) if closed else range(n - 1)
-            for i in rng:
-                j = (i + 1) % n
-                self.face([a[i], a[j], b[j], b[i]], m, smooth)
-        if closed and cap_start:
-            self.face(list(reversed(rings[0])), m)
-        if closed and cap_end:
-            self.face(list(rings[-1]), m)
-
-    def line_ring(self, pts, m, w, z0, z1):
-        """Thin vertical wall along a polyline (list of (x,y)), thickness w. For railings/parapets."""
-        for a, b in zip(pts[:-1], pts[1:]):
-            dx, dy = b[0] - a[0], b[1] - a[1]
-            L = math.hypot(dx, dy)
-            if L < 1e-6:
-                continue
-            ang = math.atan2(dy, dx)
-            self.box((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, z0, L, w, z1 - z0, m, rot=ang)
-
-    def text(self, s, x, y, z, size, m, rot_z=0.0, extrude=0.05, align='CENTER', facing='-Y', font=None, bold=False):
-        """Text as mesh. facing '-Y': readable from the front (-Y looking +Y). Position = centre/baseline-centre."""
-        crv = bpy.data.curves.new('t', 'FONT')
-        crv.body = s
-        crv.size = size
-        crv.extrude = extrude / 2
-        crv.align_x = align
-        crv.align_y = 'CENTER'
-        crv.resolution_u = 2
-        if font:
-            crv.font = font
-        obj = bpy.data.objects.new('t', crv)
-        bpy.context.scene.collection.objects.link(obj)
-        dg = bpy.context.evaluated_depsgraph_get()
-        eo = obj.evaluated_get(dg)
-        me = bpy.data.meshes.new_from_object(eo)
-        # text lies in XY plane facing +Z. Stand it up facing -Y: rotate +90 about X => text normal +Z -> -Y.
-        R = Matrix.Rotation(math.radians(90), 4, 'X')
-        if facing == '+Y':
-            R = Matrix.Rotation(math.radians(180), 4, 'Z') @ R
-        v, f, sm = self._g(m)
-        base = len(v)
-        for vert in me.vertices:
-            p = R @ vert.co
-            p = Vector((p.x, p.y, p.z))
-            c, s_ = math.cos(rot_z), math.sin(rot_z)
-            px, py = p.x * c - p.y * s_, p.x * s_ + p.y * c
-            v.append(self._t((px + x, py + y, p.z + z)))
-        for poly in me.polygons:
-            f.append(tuple(base + i for i in poly.vertices))
-            sm.append(False)
-        bpy.data.objects.remove(obj)
-        bpy.data.curves.remove(crv)
-        bpy.data.meshes.remove(me)
-
-    # ---- output ----
-    def build(self, bevel=None, skip_bevel=()):
+                j = (i+1)%n
+                s.poly(m,[tuple(ring0[i]),tuple(ring0[j]),tuple(ring1[j]),tuple(ring1[i])])
+            s.poly(m,[tuple(q) for q in ring1]); s.poly(m,[tuple(q) for q in ring0[::-1]])
+            return
+        c = [(-w/2,-h/2),(w/2,-h/2),(w/2,h/2),(-w/2,h/2)]
+        r0 = [p0 + u*a + v*b for a,b in c]; r1 = [q + d*L for q in r0]
+        for i in range(4):
+            j = (i+1)%4
+            s.poly(m,[tuple(r0[i]),tuple(r0[j]),tuple(r1[j]),tuple(r1[i])])
+        s.poly(m,[tuple(q) for q in r1]); s.poly(m,[tuple(q) for q in r0[::-1]])
+    def ellipsoid(s, m, cx, cy, cz, rx, ry, rz, nu=12, nv=8, zmin=-1.0):
+        """UV ellipsoid (lat/long), zmin in [-1,1] clips bottom (dome if 0)"""
+        import math as M
+        v0 = M.asin(max(-1,min(1,zmin)))
+        rows = []
+        for j in range(nv+1):
+            lat = v0 + (M.pi/2 - v0) * j/nv
+            ring = [(cx+rx*M.cos(lat)*M.cos(2*M.pi*i/nu), cy+ry*M.cos(lat)*M.sin(2*M.pi*i/nu), cz+rz*M.sin(lat)) for i in range(nu)]
+            rows.append(ring)
+        for j in range(nv):
+            for i in range(nu):
+                k = (i+1)%nu
+                a,b,c,d = rows[j][i], rows[j][k], rows[j+1][k], rows[j+1][i]
+                s.poly(m,[a,b,c,d])
+        if zmin > -0.99:
+            s.poly(m,[r for r in rows[0][::-1]])
+    # --- wall helpers: a rectangle on a wall, local frame. p = bottom-left point on wall, u = unit along wall (2D),
+    #     n = outward unit normal (2D). w,h size. off = push out distance
+    def wrect(s, m, p, u, n, w, h, off=0.03):
+        x, y, z = p
+        a = (x+n[0]*off, y+n[1]*off, z); b = (a[0]+u[0]*w, a[1]+u[1]*w, z)
+        c = (b[0], b[1], z+h); d = (a[0], a[1], z+h)
+        # make winding give normal n
+        e1 = Vector(b) - Vector(a); e2 = Vector(d) - Vector(a)
+        if e1.cross(e2).dot(Vector((n[0], n[1], 0))) < 0: s.quad(m, a, d, c, b)
+        else: s.quad(m, a, b, c, d)
+    def warch(s, m, p, u, n, w, h, rise=None, seg=6, off=0.03):
+        """round/segmental-headed window: rectangle h-rise tall + arch cap. p bottom-left. one ngon."""
+        rise = w/2 if rise is None else rise
+        x, y, z = p
+        pts = [(0, 0), (w, 0), (w, h-rise)]
+        for i in range(1, seg):
+            t = math.pi * i / seg  # from right (0) to left (pi)
+            # ellipse centered (w/2, h-rise)
+            pts.append((w/2 + (w/2)*math.cos(t), h-rise + rise*math.sin(t)))
+        pts += [(0, h-rise)]
+        P = [(x+n[0]*off+u[0]*a, y+n[1]*off+u[1]*a, z+b) for a, b in pts]
+        e1 = Vector(P[1]) - Vector(P[0]); e2 = Vector(P[-1]) - Vector(P[0])
+        if e1.cross(e2).dot(Vector((n[0], n[1], 0))) < 0: P = P[::-1]
+        s.poly(m, P)
+    def build(s, name):
         objs = []
-        for name, (v, f, s) in self.geo.items():
-            me = bpy.data.meshes.new(name)
+        for m, (v, f) in s.d.items():
+            me = bpy.data.meshes.new(name + '_' + m.name)
             me.from_pydata(v, [], f)
             me.update()
-            for p, sm in zip(me.polygons, s):
-                p.use_smooth = sm
-            o = bpy.data.objects.new(name, me)
-            bpy.context.scene.collection.objects.link(o)
-            me.materials.append(self.mats[name])
-            if bevel and name not in skip_bevel:
-                mod = o.modifiers.new('bev', 'BEVEL')
-                mod.width = bevel
-                mod.segments = 1
-                mod.limit_method = 'ANGLE'
-                mod.angle_limit = math.radians(40)
-            objs.append(o)
+            bm = bmesh.new(); bm.from_mesh(me)
+            bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
+            bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+            bm.to_mesh(me); bm.free()
+            ob = bpy.data.objects.new(name + '_' + m.name, me)
+            bpy.context.scene.collection.objects.link(ob)
+            ob.data.materials.append(m)
+            objs.append(ob)
         return objs
 
+def text_mesh(txt, size, m, loc, rot=(math.radians(90),0,0), extrude=0.05, align='CENTER', name='txt', font=None):
+    bpy.ops.object.text_add(location=loc, rotation=rot)
+    t = bpy.context.object; t.name = name
+    t.data.body = txt; t.data.size = size; t.data.extrude = extrude; t.data.align_x = align
+    if font: t.data.font = font
+    bpy.ops.object.convert(target='MESH')
+    t = bpy.context.object
+    t.data.materials.append(m)
+    return t
 
-def _area(poly):
-    a = 0
-    n = len(poly)
-    for i in range(n):
-        x0, y0 = poly[i][:2]
-        x1, y1 = poly[(i + 1) % n][:2]
-        a += x0 * y1 - x1 * y0
-    return a / 2
-
-
-def _triangulate(poly):
-    """Ear clipping for simple polygons (CCW). Returns index triples."""
-    n = len(poly)
-    idx = list(range(n))
-    if _area(poly) < 0:
-        idx.reverse()
-    tris = []
-    guard = 0
-    while len(idx) > 3 and guard < 10000:
-        guard += 1
-        ear = False
-        for k in range(len(idx)):
-            i0, i1, i2 = idx[k - 1], idx[k], idx[(k + 1) % len(idx)]
-            a, b, c = poly[i0], poly[i1], poly[i2]
-            cross = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
-            if cross <= 1e-12:
-                continue
-            ok = True
-            for j in idx:
-                if j in (i0, i1, i2):
-                    continue
-                p = poly[j]
-                if _in_tri(p, a, b, c):
-                    ok = False
-                    break
-            if ok:
-                tris.append((i0, i1, i2))
-                idx.pop(k)
-                ear = True
-                break
-        if not ear:
-            # degenerate; fan the rest
-            break
-    if len(idx) >= 3:
-        for k in range(1, len(idx) - 1):
-            tris.append((idx[0], idx[k], idx[k + 1]))
-    return tris
-
-
-def _in_tri(p, a, b, c):
-    def s(p1, p2, p3):
-        return (p1[0] - p3[0]) * (p2[1] - p3[1]) - (p2[0] - p3[0]) * (p1[1] - p3[1])
-    d1, d2, d3 = s(p, a, b), s(p, b, c), s(p, c, a)
-    neg = (d1 < -1e-9) or (d2 < -1e-9) or (d3 < -1e-9)
-    pos = (d1 > 1e-9) or (d2 > 1e-9) or (d3 > 1e-9)
-    return not (neg and pos)
-
-
-# ---------------------------------------------------------------- previews / export
-def tri_count():
+def tri_count(objs):
     n = 0
-    dg = bpy.context.evaluated_depsgraph_get()
-    for o in bpy.context.scene.objects:
-        if o.type == 'MESH':
-            eo = o.evaluated_get(dg)
-            me = eo.to_mesh()
-            n += sum(max(1, len(p.vertices) - 2) for p in me.polygons)
-            eo.to_mesh_clear()
+    for o in objs:
+        o.data.calc_loop_triangles(); n += len(o.data.loop_triangles)
     return n
 
-
-def bbox_world():
-    mn = Vector((1e9, 1e9, 1e9))
-    mx = Vector((-1e9, -1e9, -1e9))
-    dg = bpy.context.evaluated_depsgraph_get()
-    for o in bpy.context.scene.objects:
-        if o.type == 'MESH':
-            eo = o.evaluated_get(dg)
-            for c in eo.bound_box:
-                w = o.matrix_world @ Vector(c)
-                mn = Vector((min(mn.x, w.x), min(mn.y, w.y), min(mn.z, w.z)))
-                mx = Vector((max(mx.x, w.x), max(mx.y, w.y), max(mx.z, w.z)))
+def bbox(objs):
+    mn = Vector((1e9,)*3); mx = Vector((-1e9,)*3)
+    for o in objs:
+        for v in o.data.vertices:
+            w = o.matrix_world @ v.co
+            for i in range(3): mn[i] = min(mn[i], w[i]); mx[i] = max(mx[i], w[i])
     return mn, mx
 
+def export(key, notes, objs_pred=None):
+    out = ROOT + '/public/models/landmarks/' + key + '.glb'
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    for o in list(bpy.data.objects):
+        if o.name.startswith('PV_'): bpy.data.objects.remove(o, do_unlink=True)
+    objs = [o for o in bpy.data.objects if o.type == 'MESH']
+    for o in objs:   # smooth-off crisp by default
+        o.select_set(False)
+    bpy.ops.export_scene.gltf(filepath=out, export_format='GLB', export_apply=True, export_yup=True,
+                              export_materials='EXPORT', export_cameras=False, export_lights=False)
+    mn, mx = bbox(objs)
+    info = {"footprint": [round(mx.x-mn.x, 1), round(mx.y-mn.y, 1)], "height": round(mx.z, 1), "notes": notes}
+    json.dump(info, open(ROOT + '/public/models/landmarks/' + key + '.json', 'w'), indent=1)
+    print('EXPORT', key, 'tris', tri_count(objs), 'bbox', tuple(round(x,1) for x in mn), tuple(round(x,1) for x in mx))
+    return out
 
-def setup_render(res=(1000, 700)):
+def setup_preview(key, centre, radius, height, ground=True, ground_size=300):
+    """dusk-ish world, lights, and render 4 views to previews/"""
     sc = bpy.context.scene
-    try:
-        sc.render.engine = 'BLENDER_EEVEE'
-    except TypeError:
-        sc.render.engine = 'BLENDER_EEVEE_NEXT'
-    sc.render.resolution_x, sc.render.resolution_y = res
-    sc.render.film_transparent = False
-    try:
-        sc.eevee.taa_render_samples = 24
-    except Exception:
-        pass
-    try:
-        sc.view_settings.view_transform = 'Standard'
-    except Exception:
-        pass
-    w = bpy.data.worlds.new('w')
-    w.use_nodes = True
-    bg = w.node_tree.nodes['Background']
-    bg.inputs['Color'].default_value = (0.05, 0.07, 0.14, 1)
-    bg.inputs['Strength'].default_value = 1.0
-    sc.world = w
-
-
-def add_ground(size=400):
-    bpy.ops.mesh.primitive_plane_add(size=size, location=(0, 0, -0.02))
-    g = bpy.context.active_object
-    g.name = 'PreviewGround'
-    m = bpy.data.materials.new('PG')
-    m.use_nodes = True
-    m.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (0.03, 0.03, 0.035, 1)
-    m.node_tree.nodes['Principled BSDF'].inputs['Roughness'].default_value = 0.9
-    g.data.materials.append(m)
-    return g
-
-
-def add_lights():
-    ld = bpy.data.lights.new('sun', 'SUN')
-    ld.energy = 3.0
-    ld.color = (1.0, 0.82, 0.65)
-    so = bpy.data.objects.new('sun', ld)
-    so.rotation_euler = (math.radians(55), math.radians(0), math.radians(-35))
-    bpy.context.scene.collection.objects.link(so)
-    ld2 = bpy.data.lights.new('fill', 'SUN')
-    ld2.energy = 1.0
-    ld2.color = (0.55, 0.65, 1.0)
-    fo = bpy.data.objects.new('fill', ld2)
-    fo.rotation_euler = (math.radians(60), 0, math.radians(150))
-    bpy.context.scene.collection.objects.link(fo)
-
-
-def render_cams(name, cams, res=(1000, 700)):
-    """cams: list of (label, location, target, lens)"""
-    os.makedirs(PREV_DIR, exist_ok=True)
-    setup_render(res)
-    g = add_ground(600)
-    add_lights()
-    sc = bpy.context.scene
-    for label, loc, tgt, lens in cams:
-        cd = bpy.data.cameras.new('c')
-        cd.lens = lens
-        cd.clip_end = 2000
-        co = bpy.data.objects.new('cam', cd)
-        sc.collection.objects.link(co)
-        co.location = loc
-        d = Vector(tgt) - Vector(loc)
-        co.rotation_euler = d.to_track_quat('-Z', 'Y').to_euler()
-        sc.camera = co
-        sc.render.filepath = os.path.join(PREV_DIR, f'{name}_{label}.png')
+    try: sc.render.engine = 'BLENDER_EEVEE'
+    except Exception: sc.render.engine = 'BLENDER_EEVEE_NEXT'
+    sc.render.resolution_x, sc.render.resolution_y = 1000, 640
+    try: sc.eevee.taa_render_samples = 24
+    except Exception: pass
+    w = bpy.data.worlds.new('W'); sc.world = w; w.use_nodes = True
+    bg = w.node_tree.nodes['Background']; bg.inputs[0].default_value = (0.045, 0.06, 0.11, 1); bg.inputs[1].default_value = 1.2
+    if ground:
+        bpy.ops.mesh.primitive_plane_add(size=ground_size, location=(0,0,-0.02)); g = bpy.context.object; g.name = 'PV_ground'
+        g.data.materials.append(mat('PV_asphalt', (46,46,52), 0.9))
+    sun = bpy.data.lights.new('PV_sun', 'SUN'); sun.energy = 2.2; sun.color = (1.0, 0.72, 0.5)
+    so = bpy.data.objects.new('PV_sun', sun); sc.collection.objects.link(so); so.rotation_euler = (math.radians(65), 0, math.radians(35))
+    fl = bpy.data.lights.new('PV_fill', 'SUN'); fl.energy = 0.8; fl.color = (0.55, 0.65, 1.0)
+    fo = bpy.data.objects.new('PV_fill', fl); sc.collection.objects.link(fo); fo.rotation_euler = (math.radians(55), 0, math.radians(-150))
+    cam = bpy.data.cameras.new('PV_cam'); cam.lens = 35; cam.clip_end = 2000
+    co = bpy.data.objects.new('PV_cam', cam); sc.collection.objects.link(co); sc.camera = co
+    cx, cy = centre
+    views = {'front34': (-35, -1, 0.55), 'rear34': (145, -1, 0.55), 'side': (90, -1, 0.25), 'top': (-20, -1, 1.6), 'front': (0, -1, 0.3)}
+    def shoot(name, azim_deg, dist_mul, elev_mul):
+        a = math.radians(azim_deg - 90)  # azim 0 = from -Y
+        d = radius * dist_mul
+        pos = Vector((cx + math.cos(a)*d, cy + math.sin(a)*d, height*0.5 + radius*elev_mul))
+        co.location = pos
+        tgt = Vector((cx, cy, height*0.45))
+        co.rotation_euler = (tgt - pos).to_track_quat('-Z', 'Y').to_euler()
+        sc.render.filepath = ROOT + '/blender/previews/%s_%s.png' % (key, name)
         bpy.ops.render.render(write_still=True)
-        bpy.data.objects.remove(co)
-    bpy.data.objects.remove(g)
-
-
-def export(name, footprint, notes, extra=None):
-    os.makedirs(OUT_DIR, exist_ok=True)
-    # hide preview-only objects
-    for o in list(bpy.context.scene.objects):
-        if o.name.startswith('PreviewGround'):
-            bpy.data.objects.remove(o)
-    path = os.path.join(OUT_DIR, f'{name}.glb')
-    sel = [o for o in bpy.context.scene.objects if o.type == 'MESH']
-    bpy.ops.object.select_all(action='DESELECT')
-    for o in sel:
-        o.select_set(True)
-    bpy.ops.export_scene.gltf(filepath=path, export_format='GLB', export_apply=True, export_yup=True,
-                              export_materials='EXPORT', export_cameras=False, export_lights=False,
-                              use_selection=True)
-    mn, mx = bbox_world()
-    info = {'footprint': [round(footprint[0], 2), round(footprint[1], 2)], 'height': round(mx.z, 2), 'notes': notes,
-            'bbox_x': [round(mn.x, 2), round(mx.x, 2)], 'bbox_y': [round(mn.y, 2), round(mx.y, 2)],
-            'triangles': tri_count()}
-    if extra:
-        info.update(extra)
-    json.dump(info, open(os.path.join(OUT_DIR, f'{name}.json'), 'w'), indent=1)
-    print('EXPORT', name, info)
-    return path
-
-
-def finish(B, name, footprint, notes, cams, bevel=0.03, skip_bevel=(), res=(1000, 700), do_preview=True):
-    B.build(bevel=bevel, skip_bevel=skip_bevel)
-    export(name, footprint, notes)
-    if do_preview and '--nopreview' not in sys.argv:
-        render_cams(name, cams, res)
-
-
-def reimport_check(name):
-    reset_scene()
-    bpy.ops.import_scene.gltf(filepath=os.path.join(OUT_DIR, f'{name}.glb'))
-    mn, mx = bbox_world()
-    print('REIMPORT', name, 'bbox', tuple(round(v, 2) for v in mn), tuple(round(v, 2) for v in mx))
+    return shoot

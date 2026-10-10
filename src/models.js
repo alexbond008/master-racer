@@ -47,3 +47,11 @@ export function buildKenneyCar(def, opts = {}) {
   }
   return root;
 }
+
+// ---- Blender car models (public/models/cars/<id>.glb). Missing files are fine: the game falls back to the procedural car.
+const carCache = new Map();
+export async function preloadCarModels(ids) {
+  const loader = new GLTFLoader();
+  await Promise.all([...new Set(ids)].map(async id => { try { carCache.set(id, (await loader.loadAsync(`/models/cars/${id}.glb`)).scene); } catch { /* not modelled */ } }));
+}
+export const getCarModel = id => carCache.get(id) || null;

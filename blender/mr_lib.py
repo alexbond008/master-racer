@@ -398,7 +398,7 @@ def wheel_object(name, hub, r, width, rim_r, side, offsets=(0.0,), style='alloy'
                 a = k * 2 * math.pi / 5
                 bx = bmesh.new()
                 bmesh.ops.create_cube(bx, size=1.0)
-                bmesh.ops.scale(bx, vec=Vector((w * 0.10, rim_r * 0.80, rim_r * 0.26)), verts=bx.verts)
+                bmesh.ops.scale(bx, vec=Vector((w * 0.12, rim_r * 0.80, rim_r * 0.34)), verts=bx.verts)
                 _xform(bx, (xf, 0, 0), Matrix.Rotation(a, 3, 'X') @ Matrix.Translation((0, 0, 0)).to_3x3())
                 bmesh.ops.translate(bx, vec=(0, 0, 0), verts=bx.verts)
                 # push spoke outward from the hub along its own axis

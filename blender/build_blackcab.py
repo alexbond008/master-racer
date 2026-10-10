@@ -157,10 +157,10 @@ bpy.data.objects.remove(cab_ob)
 
 # bumpers (painted black on the real cab) -> Paint
 for yy, sg in ((-2.215, -1), (2.205, 1)):
-    box(body, (0, yy, 0.37), (1.30, 0.15, 0.26), 'Paint', bevel=0.06, segs=3)
+    box(body, (0, yy, 0.37), (1.50, 0.15, 0.26), 'Paint', bevel=0.06, segs=3)
     for sx in (1, -1):
-        box(body, (sx * 0.62, yy - sg * -0.0 - sg * 0.0 + sg * 0.06 * -1 * -1 * 0.0 + (0.0), 0.37), (0.4, 0.15, 0.26), 'Paint', bevel=0.06, segs=3,
-            rot=Matrix.Rotation(math.radians(-sg * sx * 28), 3, 'Z'))
+        box(body, (sx * 0.77, yy - sg * 0.05, 0.38), (0.22, 0.14, 0.22), 'Paint', bevel=0.06, segs=3,
+            rot=Matrix.Rotation(math.radians(-sg * sx * 40), 3, 'Z'))
 # side sills
 for sx in (1, -1):
     box(body, (sx * 0.84, 0.0, 0.31), (0.04, 2.0, 0.10), 'Paint', bevel=0.012)
@@ -187,7 +187,7 @@ for sx in (1, -1):
     cyl(trim, (sx * 0.60, -2.20, 0.82), 'y', 0.125, 0.05, 'Trim', seg=24)
     cyl(trim, (sx * 0.60, -2.215, 0.82), 'y', 0.115, 0.03, 'Chrome', seg=24)
 # rear plate + reverse
-box(trim, (0, 2.285, 0.58), (0.52, 0.012, 0.12), 'Plate', bevel=0.004)
+box(trim, (0, 2.277, 0.58), (0.52, 0.012, 0.12), 'Plate', bevel=0.004)
 box(trim, (0, 2.285, 0.85), (0.50, 0.03, 0.05), 'Trim', bevel=0.01)
 # door seams (thin dark grooves) + handles on both sides
 for sx in (1, -1):
@@ -229,7 +229,7 @@ for sx in (1, -1):
     # tail clusters: red stop/tail + amber indicator + white reverse
     box(lights, (sx * 0.70, 2.19, 0.80), (0.12, 0.030, 0.40), 'TailLight', bevel=0.012, segs=2, rot=Matrix.Rotation(math.radians(sx * 22), 3, 'Z'))
     box(lights, (sx * 0.60, 2.225, 0.58), (0.10, 0.015, 0.06), 'Emit_Sign', bevel=0.004)
-    box(lights, (sx * 0.40, 2.287, 0.58), (0.10, 0.012, 0.05), 'HeadLight', bevel=0.004)
+    box(lights, (sx * 0.40, 2.277, 0.58), (0.10, 0.012, 0.05), 'HeadLight', bevel=0.004)
 lights_ob = lights.to_object(smooth_angle=45)
 
 # ---------------------------------------------------------------- mirrors

@@ -13,7 +13,7 @@ import { Weather, WEATHER } from './weather.js';
 import { Input } from './input.js';
 import { Hud } from './hud.js';
 import { Traffic, KENNEY_FILES } from './traffic.js';
-import { preloadKenney } from './models.js';
+import { preloadKenney, preloadCarModels } from './models.js';
 import { PoliceSystem } from './police.js';
 import { carVsCar } from './ai.js';
 import { RaceSystem, RIVALS } from './races.js';
@@ -36,6 +36,7 @@ const moon = new THREE.DirectionalLight(0xa9b9ff, 0.55); moon.position.set(-300,
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 scene.environmentIntensity = 0.45;
+await preloadCarModels([...Object.keys(CARS), 'cruiser', 'interceptor', 'suv', 'blackcab', 'bus']);   // Blender car models (any that exist)
 const netData = await (await fetch('/data/southlondon.json')).json();
 // the dev server may already decode .gz (Content-Encoding), so sniff the gzip magic bytes
 const gunzipJson = async url => {

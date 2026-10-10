@@ -113,6 +113,7 @@ B.prism(AUD, 0, AUD_H, BRICK, bottom=False)
 B.prism(FLY, 0, FLY_H, BRICK, bottom=False)
 # roofs: dark slab + raised parapet frames
 B.prism([(p[0], p[1]) for p in AUD], AUD_H, AUD_H + 0.15, ROOF)
+B.prism([(p[0], p[1]) for p in FLY], FLY_H, FLY_H + 0.15, ROOF)
 wall_details(AUD, 0.0, AUD_H, 6.5, win_rows=[(6.0, 9.6, 2.0), (12.5, 16.0, 2.0)], parapet=0.9)
 wall_details(FLY, 0.0, FLY_H, 7.0, win_rows=[(9.0, 12.0, 1.8), (20.0, 23.5, 1.8), (28.5, 31.0, 1.8)],
              parapet=1.1, pil_w=1.1, pil_out=0.45)

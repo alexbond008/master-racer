@@ -345,6 +345,7 @@ MODES = {
 
 def patch(m, surf, mode, grid, mat='Trim', lift=0.004, skirt=True, wrap=False, crown=0.0, sdepth=None):
     """grid: rows x cols of 2D points in projection plane; rays are cast onto surf."""
+    wrap = wrap or getattr(grid, 'wrap', False)
     nr, nc = len(grid), len(grid[0])
     V = [[None] * nc for _ in range(nr)]
     NOR = {}
@@ -407,19 +408,25 @@ def patch(m, surf, mode, grid, mat='Trim', lift=0.004, skirt=True, wrap=False, c
         bmesh.ops.remove_doubles(m.bm, verts=[v for v in newv if v.is_valid], dist=1e-6)
 
 
-def sym(m, surf, mode, grid, **kw):
+class Grid(list):
+    wrap = False
+
+
+def sym(m, surf, mode, grid, mat='Trim', **kw):
     """Place a patch on both sides of the car (grid given for the +x side)."""
     if mode in ('S', 'L'):
-        patch(m, surf, 'S', grid, **kw)
-        patch(m, surf, 'L', grid, **kw)
+        patch(m, surf, 'S', grid, mat, **kw)
+        patch(m, surf, 'L', grid, mat, **kw)
     else:
-        patch(m, surf, mode, grid, **kw)
-        patch(m, surf, mode, [[(-a, b) for a, b in r] for r in grid], **kw)
+        patch(m, surf, mode, grid, mat, **kw)
+        g2 = Grid([[(-a, b) for a, b in r] for r in grid])
+        g2.wrap = getattr(grid, 'wrap', False)
+        patch(m, surf, mode, g2, mat, **kw)
 
 
 def quad_grid(c, nu=6, nv=4, rnd=0.0):
     """c: 4 corners (-u-v, +u-v, +u+v, -u+v) as 2D points. rnd 0..1 squircle rounding."""
-    g = []
+    g = Grid()
     for j in range(nv + 1):
         row = []
         for i in range(nu + 1):
@@ -445,7 +452,8 @@ def rect_c(x0, x1, z0, z1):
 
 
 def ellipse_grid(cx, cz, a, b, nr=3, ns=20, r0=0.0, rot=0.0):
-    g = []
+    g = Grid()
+    g.wrap = True
     for i in range(nr + 1):
         rho = lerp(r0, 1.0, i / nr)
         row = []
@@ -472,7 +480,7 @@ def resample(pts, step=0.02):
 
 def ribbon_grid(pts, width, step=0.02):
     pts = resample(pts, step)
-    g = []
+    g = Grid()
     for i, p in enumerate(pts):
         a = pts[max(0, i - 1)]
         b = pts[min(len(pts) - 1, i + 1)]
@@ -491,7 +499,7 @@ def arc_pts(cx, cz, r, a0, a1, n=24):
 
 def arc_band(cy, cz, r0, r1, a0, a1, n=30):
     """Annular arc band grid (rows along arc, 2 cols radial) for flares."""
-    g = []
+    g = Grid()
     for i in range(n + 1):
         a = math.radians(a0 + (a1 - a0) * i / n)
         g.append([(cy + r0 * math.sin(a), cz + r0 * math.cos(a)), (cy + r1 * math.sin(a), cz + r1 * math.cos(a))])
@@ -682,16 +690,31 @@ def verify_and_render(car_id, glb, focus=None, cam_dist=1.0):
         'rear': (0.0001, 2.3 * D, 0.25 * D, 0.0),
         'low34': (1.3 * D, -0.9 * D, -0.05 * D, 0.0),
     }
+    cust = os.environ.get('CAMS')
+    if cust:
+        for spec in cust.split(';'):
+            nm, vals = spec.split(':')
+            v = [float(t) for t in vals.split(',')]
+            views[nm] = ('custom', v)
     only = os.environ.get('VIEWS')
-    for nm, (x, y, z, _) in views.items():
+    for nm, vv in views.items():
         if only and nm not in only.split(','):
             continue
         cd = bpy.data.cameras.new('c')
         cd.lens = 55 if nm not in ('top',) else 45
         co = bpy.data.objects.new('cam', cd)
         sc.collection.objects.link(co)
-        co.location = (c.x + x, c.y + y, c.z + z)
-        co.rotation_euler = (c - co.location).to_track_quat('-Z', 'Y').to_euler()
+        if vv[0] == 'custom':
+            v = vv[1]
+            co.location = (v[0], v[1], v[2])
+            tgt = Vector((v[3], v[4], v[5]))
+            if len(v) > 6:
+                cd.lens = v[6]
+        else:
+            x, y, z, _ = vv
+            co.location = (c.x + x, c.y + y, c.z + z)
+            tgt = c
+        co.rotation_euler = (tgt - co.location).to_track_quat('-Z', 'Y').to_euler()
         sc.camera = co
         sc.render.filepath = os.path.join(PREV, '%s_%s.png' % (car_id, nm))
         bpy.ops.render.render(write_still=True)

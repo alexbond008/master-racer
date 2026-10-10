@@ -662,3 +662,42 @@ def tri_count(objs):
         me.calc_loop_triangles()
         n += len(me.loop_triangles)
     return n
+
+
+# ----------------------------------------------------------------- misc builders
+def arch_liner(car, obj, mat, side_sign, cy, cz, R, x_in, x_out, zmin, seg=28):
+    """Dark inner wheel-arch lining (arc strip + inner cap)."""
+    th0 = math.asin(max(-1.0, min(1.0, (zmin - cz) / R)))
+    pts = []
+    for i in range(seg + 1):
+        th = th0 + (math.pi - 2 * th0) * i / seg
+        pts.append((cy + R * math.cos(th), cz + R * math.sin(th)))
+    n = len(pts)
+    xi_, xo_ = x_in * side_sign, x_out * side_sign
+    verts = [(xi_, p[0], p[1]) for p in pts] + [(xo_, p[0], p[1]) for p in pts]
+    faces = []
+    for i in range(n - 1):
+        q = [i, i + 1, n + i + 1, n + i]
+        faces.append(q if side_sign > 0 else q[::-1])
+    cap = list(range(n))
+    faces.append(cap if side_sign < 0 else cap[::-1])
+    car.add(obj, mat, verts, faces)
+
+
+def wheel_cutter(hubs, R_arch, x_in, x_out, seg=48):
+    """Boolean cutter: one cylinder per wheel. hubs: list of (side_sign, y, z)."""
+    bm = bmesh.new()
+    for s, y, z in hubs:
+        a, b = (x_in * s, x_out * s)
+        cyl_x(bm, min(a, b), max(a, b), y, z, R_arch, seg)
+    return bm
+
+
+def wheel_objects(car, objs, track_f, track_r, wb, R, W, Rr, style, hub_front_back=None, seg=32, spokes=5):
+    """Create wheel_fl/fr/rl/rr. y of front axle = -wb/2."""
+    hubs = {}
+    for nm, sx, sy, tr in (('wheel_fl', +1, -1, track_f), ('wheel_fr', -1, -1, track_f),
+                           ('wheel_rl', +1, +1, track_r), ('wheel_rr', -1, +1, track_r)):
+        build_wheel(car, nm, sx, R, W, Rr, style, seg=seg, spokes=spokes)
+        hubs[nm] = (sx * tr / 2, sy * wb / 2, R)
+    return hubs
