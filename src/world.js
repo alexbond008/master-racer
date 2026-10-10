@@ -225,7 +225,7 @@ export function buildWorld(scene, data, extra = {}) {
 
   lap('meshes');
   // ---------- street furniture (lamps, crossings, signals, bus stops...)
-  buildFurniture(group, net, rnd, { inPark, occ });
+  buildFurniture(group, net, rnd, { inPark, occ, addTree: (x, z, r) => cgAdd({ x, z, r, tree: true }, 2) });
 
   lap('furniture');
   // ---------- district gantries over the nearest main road

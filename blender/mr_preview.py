@@ -42,12 +42,12 @@ except Exception:
 # world: dusk-ish sky for readable previews
 w = bpy.data.worlds.new('w'); w.use_nodes = True
 bg = w.node_tree.nodes['Background']
-bg.inputs['Color'].default_value = (0.35, 0.40, 0.52, 1); bg.inputs['Strength'].default_value = 1.0
+bg.inputs['Color'].default_value = (0.35, 0.40, 0.52, 1); bg.inputs['Strength'].default_value = 1.6
 scn.world = w
 # ground
 bpy.ops.mesh.primitive_plane_add(size=60, location=(0, 0, -0.001))
 gm = bpy.data.materials.new('g'); gm.use_nodes = True
-gm.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (0.12, 0.12, 0.13, 1)
+gm.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (0.22, 0.22, 0.23, 1)
 gm.node_tree.nodes['Principled BSDF'].inputs['Roughness'].default_value = 0.9
 bpy.context.object.data.materials.append(gm)
 for loc, e, rot in (((6, -8, 10), 3.0, (0.8, 0.3, 0.5)), ((-8, 6, 6), 1.5, (1.0, 0, -2.2))):

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 // London street furniture along the real road graph (see research/london.md section 5). Decorative, no collision.
-export function buildFurniture(group, net, rnd, { inPark, occ }) {
+export function buildFurniture(group, net, rnd, { inPark, occ, addTree }) {
   const tmp = new THREE.Object3D();
   const inst = (geo, mat, list, setup) => {
     if (!list.length) return null;
@@ -13,7 +13,7 @@ export function buildFurniture(group, net, rnd, { inPark, occ }) {
   // point beside the road: side +1 = left of travel (dir 1), `off` metres from the centreline
   const beside = (e, s, side, off) => { const p = net.pointAt(e, 1, s); return { x: p.x + p.tz * side * off, z: p.z - p.tx * side * off, th: Math.atan2(p.tx, p.tz), tx: p.tx, tz: p.tz }; };
 
-  const lamps = [], stripes = [], beacons = [], shelters = [], flags = [], phones = [], pillars = [], signals = [];
+  const trees = [], lamps = [], stripes = [], beacons = [], shelters = [], flags = [], phones = [], pillars = [], signals = [];
   let alt = 0;
   for (const e of net.edges) {
     if (e.bridge || e.len < 12) continue;
@@ -22,6 +22,12 @@ export function buildFurniture(group, net, rnd, { inPark, occ }) {
     for (let s = 8 + rnd() * gap * 0.5; s < e.len - 6; s += gap) {
       const side = (alt++ % 2) ? 1 : -1, p = beside(e, s, side, e.width / 2 + 1.1);
       if (free(p.x, p.z)) lamps.push([p.x, p.z]);
+    }
+    // ---- plane trees on the pavement (residential + B roads), sparse on high streets
+    for (let s = 14 + rnd() * 10; s < e.len - 8; s += 24 + rnd() * 10) {
+      if (rnd() > (e.cls >= 2 ? 0.55 : 0.2)) continue;
+      const side = rnd() < 0.5 ? 1 : -1, p = beside(e, s, side, e.width / 2 + 1.0);
+      if (free(p.x, p.z) && net.clearance(p.x, p.z, e.id, 12) > 4) trees.push([p.x, p.z, 6.5 + rnd() * 3.5]);
     }
     if (!main) continue;
     // ---- zebra crossing (about one in four long main-road edges)
@@ -49,6 +55,16 @@ export function buildFurniture(group, net, rnd, { inPark, occ }) {
   });
 
   // ---- instanced meshes
+  if (trees.length) {
+    const T = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.15, 0.25, 1, 6), new THREE.MeshStandardMaterial({ color: 0x3b2c20 }), trees.length);
+    const F = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshStandardMaterial({ color: 0x35602a, roughness: 1, flatShading: true }), trees.length);
+    trees.forEach((t, i) => {
+      tmp.rotation.set(0, rnd() * 6, 0); tmp.position.set(t[0], t[2] * 0.19, t[1]); tmp.scale.set(1, t[2] * 0.38, 1); tmp.updateMatrix(); T.setMatrixAt(i, tmp.matrix);
+      tmp.position.set(t[0], t[2] * 0.62, t[1]); tmp.scale.set(t[2] * 0.3, t[2] * 0.36, t[2] * 0.3); tmp.updateMatrix(); F.setMatrixAt(i, tmp.matrix);
+      addTree?.(t[0], t[1], 0.35);
+    });
+    group.add(T, F);
+  }
   const lampPole = new THREE.CylinderGeometry(0.08, 0.12, 7, 6); lampPole.translate(0, 3.5, 0);
   inst(lampPole, new THREE.MeshStandardMaterial({ color: 0x22252a, roughness: 0.7 }), lamps, (o, l) => o.position.set(l[0], 0, l[1]));
   inst(new THREE.SphereGeometry(0.34, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(4.2, 2.6, 0.8) }), lamps, (o, l) => o.position.set(l[0], 7.1, l[1]));

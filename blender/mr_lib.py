@@ -139,7 +139,7 @@ def cyl(part, c, axis, r, length, m, seg=20, r2=None, cap=True):
     b.free()
 
 
-def revolve(part, c, profile, m, seg=24, closed=False, smooth_faces=True):
+def revolve(part, c, profile, m, seg=24, closed=False, smooth_faces=True, caps=True):
     """Revolve profile [(radius, axial_x)] about the X axis through c."""
     b = bmesh.new()
     rings = []
@@ -156,13 +156,10 @@ def revolve(part, c, profile, m, seg=24, closed=False, smooth_faces=True):
         for i in range(seg):
             f = b.faces.new([r0[i], r0[(i + 1) % seg], r1[(i + 1) % seg], r1[i]])
             f.smooth = smooth_faces
-    if not closed:
-        for ring in (rings[0], rings[-1]):
-            if profile[0][0] > 1e-6 or ring is rings[-1] and profile[-1][0] > 1e-6:
-                try:
-                    b.faces.new(ring)
-                except ValueError:
-                    pass
+    if not closed and caps:
+        for ring, pr in ((rings[0], profile[0]), (rings[-1], profile[-1])):
+            if pr[0] > 1e-6:
+                b.faces.new(ring)
     _xform(b, c)
     part.merge(b, m)
     b.free()
@@ -393,7 +390,7 @@ def wheel_object(name, hub, r, width, rim_r, side, offsets=(0.0,), style='alloy'
         s = side if len(offsets) == 1 else (1 if ox >= 0 else -1) * side
         # rim barrel + lip
         revolve(p, (0, 0, 0), [(rim_r, ox - w * 0.42), (rim_r * 0.96, ox - w * 0.1), (rim_r, ox + w * 0.42)], 'Rim',
-                seg=seg)
+                seg=seg, caps=False)
         xf = ox + s * w * 0.18
         if style == 'alloy':
             cyl(p, (xf, 0, 0), 'x', rim_r * 0.30, w * 0.16, 'Chrome', seg=14)

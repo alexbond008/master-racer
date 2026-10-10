@@ -68,19 +68,19 @@ def cab_prof(st):
 
 
 def cab_deform(x, y, z):
-    wf = 1 - smoothstep(-0.9, 0.3, y)
+    wf = 1 - smoothstep(-1.1, 0.2, y)
     wr = smoothstep(1.0, 1.9, y)
     dz = max(z - BELT, 0)
     return (x, y + 0.90 * wf * dz - 0.14 * wr * dz, z)
 
 
-FRONT_Y = -1.05
+FRONT_Y = -1.25
 REAR_Y = 2.0
 cst = []
 IDX = {}
 for t in ts:
     cst.append(dict(y=FRONT_Y + 0.20 * t, ix=0.14 * f_end(t), iz=0.06 * f_end(t)))
-for name, y in [('wA', -0.70), ('m1', -0.45), ('m2', -0.20), ('wB', 0.10), ('pB', 0.26), ('wC', 1.24), ('pC', 1.40),
+for name, y in [('wA', -0.85), ('m1', -0.55), ('m2', -0.25), ('wB', -0.05), ('pB', 0.10), ('wC', 1.20), ('pC', 1.36),
                 ('wD', 1.80)]:
     IDX[name] = len(cst)
     cst.append(dict(y=y, ix=0, iz=0))
@@ -141,7 +141,7 @@ hull_ob = finish_loft(hull, 'hull', 'Paint')
 cab_ob = finish_loft(cabin, 'cabin', 'Paint')
 
 # wheel arches: cut hull, add liners later
-arch_R = 0.42
+arch_R = 0.395
 for yc in (YF, YR):
     for sx in (1, -1):
         c = cutter_cyl('cut', (yc, WR), arch_R, sx * 0.55, sx * 1.0)
@@ -156,8 +156,11 @@ bpy.data.objects.remove(hull_ob)
 bpy.data.objects.remove(cab_ob)
 
 # bumpers (painted black on the real cab) -> Paint
-box(body, (0, -2.215, 0.37), (1.66, 0.15, 0.24), 'Paint', bevel=0.05, segs=2)
-box(body, (0, 2.205, 0.37), (1.66, 0.17, 0.24), 'Paint', bevel=0.05, segs=2)
+for yy, sg in ((-2.215, -1), (2.205, 1)):
+    box(body, (0, yy, 0.37), (1.30, 0.15, 0.26), 'Paint', bevel=0.06, segs=3)
+    for sx in (1, -1):
+        box(body, (sx * 0.62, yy - sg * -0.0 - sg * 0.0 + sg * 0.06 * -1 * -1 * 0.0 + (0.0), 0.37), (0.4, 0.15, 0.26), 'Paint', bevel=0.06, segs=3,
+            rot=Matrix.Rotation(math.radians(-sg * sx * 28), 3, 'Z'))
 # side sills
 for sx in (1, -1):
     box(body, (sx * 0.84, 0.0, 0.31), (0.04, 2.0, 0.10), 'Paint', bevel=0.012)
@@ -189,26 +192,28 @@ box(trim, (0, 2.285, 0.85), (0.50, 0.03, 0.05), 'Trim', bevel=0.01)
 # door seams (thin dark grooves) + handles on both sides
 for sx in (1, -1):
     xs = sx * (HW + 0.002)
-    for ys in (-0.85, 0.20, 1.34):
+    for ys in (-1.00, 0.04, 1.30):
         box(trim, (xs, ys, 0.70), (0.006, 0.010, 0.70), 'Trim')
     # handles: front door (rear edge) and rear door (front edge, rear-hinged)
-    box(trim, (sx * (HW + 0.008), 0.06, 0.99), (0.020, 0.10, 0.022), 'Chrome', bevel=0.005)
-    box(trim, (sx * (HW + 0.008), 0.34, 0.99), (0.020, 0.10, 0.022), 'Chrome', bevel=0.005)
+    box(trim, (sx * (HW + 0.008), -0.10, 0.99), (0.020, 0.10, 0.022), 'Chrome', bevel=0.005)
+    box(trim, (sx * (HW + 0.008), 0.18, 0.99), (0.020, 0.10, 0.022), 'Chrome', bevel=0.005)
     # rear door hinge hint (rear-hinged): dark vertical strip
-    box(trim, (xs, 1.325, 0.95), (0.012, 0.035, 0.30), 'Trim')
+    box(trim, (xs, 1.29, 0.95), (0.012, 0.035, 0.30), 'Trim')
     # side rubbing strip / wheel flares
     for yc in (YF, YR):
-        pts = arc_pts(yc, WR, 0.44, 5, 175, 12)
-        # flare lip as small boxes along the arch edge
-        for (py, pz) in pts[::2]:
-            box(trim, (sx * (HW + 0.004), py, pz), (0.016, 0.05, 0.05), 'Trim')
+        po = arc_pts(yc, WR, arch_R + 0.045, 0, 180, 18)
+        pi = arc_pts(yc, WR, arch_R - 0.002, 0, 180, 18)
+        for i in range(len(po) - 1):
+            xo = sx * (HW + 0.012)
+            xi = sx * (HW + 0.0005)
+            trim.poly([(xi, pi[i][0], pi[i][1]), (xi, pi[i + 1][0], pi[i + 1][1]), (xo, po[i + 1][0], po[i + 1][1]),
+                       (xo, po[i][0], po[i][1])], 'Trim')
     arch_liner(trim, YF, WR, arch_R - 0.003, Z0, sx * 0.58, sx * HW)
     arch_liner(trim, YR, WR, arch_R - 0.003, Z0, sx * 0.58, sx * HW)
 # windscreen wipers (resting)
 for sx in (1, -1):
-    box(trim, (sx * 0.16 + 0.0, -1.03, 1.125), (0.46, 0.012, 0.012), 'Trim', rot=Matrix.Rotation(math.radians(-8 * sx), 3, 'Y'))
+    box(trim, (sx * 0.20, -1.215, 1.115), (0.40, 0.008, 0.008), 'Trim', rot=Matrix.Rotation(math.radians(-6 * sx), 3, 'Y'))
 # roof cab-sign bracket + A/B pillars rubber
-box(trim, (0, -0.15, 1.705), (0.60, 0.20, 0.02), 'Trim')
 # chrome TX badge + side repeater
 box(trim, (0, -2.237, 0.70), (0.12, 0.006, 0.03), 'Chrome')
 for sx in (1, -1):
@@ -222,10 +227,9 @@ for sx in (1, -1):
     box(lights, (sx * 0.805, -2.14, 0.66), (0.03, 0.18, 0.06), 'Emit_Sign', bevel=0.01)   # side indicator
     box(lights, (sx * 0.42, -2.246, 0.62), (0.14, 0.01, 0.05), 'Emit_Sign', bevel=0.004)  # front indicator
     # tail clusters: red stop/tail + amber indicator + white reverse
-    box(lights, (sx * 0.70, 2.265, 0.78), (0.11, 0.030, 0.40), 'TailLight', bevel=0.012, segs=2)
-    box(lights, (sx * 0.64, 2.285, 0.58), (0.10, 0.015, 0.06), 'Emit_Sign', bevel=0.004)
-    box(lights, (sx * 0.42, 2.287, 0.58), (0.10, 0.012, 0.05), 'HeadLight', bevel=0.004)
-    box(lights, (sx * 0.82, 2.10, 0.74), (0.02, 0.10, 0.16), 'TailLight', bevel=0.006)    # side marker wrap
+    box(lights, (sx * 0.70, 2.19, 0.80), (0.12, 0.030, 0.40), 'TailLight', bevel=0.012, segs=2, rot=Matrix.Rotation(math.radians(sx * 22), 3, 'Z'))
+    box(lights, (sx * 0.60, 2.225, 0.58), (0.10, 0.015, 0.06), 'Emit_Sign', bevel=0.004)
+    box(lights, (sx * 0.40, 2.287, 0.58), (0.10, 0.012, 0.05), 'HeadLight', bevel=0.004)
 lights_ob = lights.to_object(smooth_angle=45)
 
 # ---------------------------------------------------------------- mirrors
@@ -250,14 +254,14 @@ inte_ob = inte.to_object(smooth_angle=45)
 
 # ---------------------------------------------------------------- TAXI sign (own object)
 sign = Part('taxi_sign', ['Emit_Sign', 'Trim'])
-SW, SD, SH = 0.74, 0.22, 0.125
+SW, SD, SH = 0.76, 0.22, 0.13
 SZ = ROOF + SH / 2 - 0.005
-SY = -0.12
+SY = -0.45
 box(sign, (0, SY, SZ), (SW, SD, SH), 'Emit_Sign', bevel=0.03, segs=2)
 box(sign, (0, SY, ROOF - 0.002), (SW * 0.9, SD * 0.86, 0.012), 'Trim')
 for ysgn, rz in ((-1, Matrix.Rotation(math.pi / 2, 3, 'X')),
                  (1, Matrix.Rotation(math.pi, 3, 'Z') @ Matrix.Rotation(math.pi / 2, 3, 'X'))):
-    text_mesh(sign, 'TAXI', (0, SY + ysgn * (SD / 2 + 0.001), SZ), 0.085, 'Trim', depth=0.008, rot=rz)
+    text_mesh(sign, 'TAXI', (0, SY + ysgn * (SD / 2 + 0.001), SZ), 0.105, 'Trim', depth=0.008, rot=rz)
 sign_ob = sign.to_object(smooth_angle=60)
 sign_ob.name = 'taxi_sign'
 

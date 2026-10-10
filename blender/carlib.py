@@ -407,6 +407,16 @@ def patch(m, surf, mode, grid, mat='Trim', lift=0.004, skirt=True, wrap=False, c
         bmesh.ops.remove_doubles(m.bm, verts=[v for v in newv if v.is_valid], dist=1e-6)
 
 
+def sym(m, surf, mode, grid, **kw):
+    """Place a patch on both sides of the car (grid given for the +x side)."""
+    if mode in ('S', 'L'):
+        patch(m, surf, 'S', grid, **kw)
+        patch(m, surf, 'L', grid, **kw)
+    else:
+        patch(m, surf, mode, grid, **kw)
+        patch(m, surf, mode, [[(-a, b) for a, b in r] for r in grid], **kw)
+
+
 def quad_grid(c, nu=6, nv=4, rnd=0.0):
     """c: 4 corners (-u-v, +u-v, +u+v, -u+v) as 2D points. rnd 0..1 squircle rounding."""
     g = []
@@ -633,8 +643,8 @@ def verify_and_render(car_id, glb, focus=None, cam_dist=1.0):
     w.use_nodes = True
     bg = w.node_tree.nodes['Background']
     bg.inputs[0].default_value = (0.42, 0.5, 0.62, 1)
-    bg.inputs[1].default_value = 1.1
-    for nm, loc, e, col in (('sun', (4, -6, 8), 4.0, (1, 0.95, 0.88)), ('fill', (-6, 5, 4), 1.5, (0.7, 0.8, 1))):
+    bg.inputs[1].default_value = 0.7
+    for nm, loc, e, col in (('sun', (4, -6, 8), 5.5, (1, 0.95, 0.88)), ('fill', (-6, 5, 3), 1.2, (0.7, 0.8, 1))):
         ld = bpy.data.lights.new(nm, 'SUN')
         ld.energy = e
         ld.color = col
@@ -664,13 +674,13 @@ def verify_and_render(car_id, glb, focus=None, cam_dist=1.0):
         c = Vector(focus)
     D = max(size.x, size.y) * cam_dist
     views = {
-        'front34': (-0.75 * D, -0.95 * D, 0.45 * D, 0.0),
-        'rear34': (0.8 * D, 1.0 * D, 0.5 * D, 0.0),
-        'side': (1.45 * D, 0.0001 * D, 0.14 * D, 0.0),
-        'top': (0.28 * D, -0.5 * D, 1.5 * D, 0.0),
-        'front': (0.0001, -1.6 * D, 0.28 * D, 0.0),
-        'rear': (0.0001, 1.6 * D, 0.28 * D, 0.0),
-        'low34': (1.0 * D, -0.7 * D, 0.1 * D, 0.0),
+        'front34': (-0.95 * D, -1.25 * D, 0.38 * D, 0.0),
+        'rear34': (1.0 * D, 1.25 * D, 0.42 * D, 0.0),
+        'side': (2.2 * D, 0.0001 * D, 0.1 * D, 0.0),
+        'top': (0.15 * D, -0.3 * D, 2.1 * D, 0.0),
+        'front': (0.0001, -2.3 * D, 0.2 * D, 0.0),
+        'rear': (0.0001, 2.3 * D, 0.25 * D, 0.0),
+        'low34': (1.3 * D, -0.9 * D, -0.05 * D, 0.0),
     }
     only = os.environ.get('VIEWS')
     for nm, (x, y, z, _) in views.items():
