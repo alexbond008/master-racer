@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MASTER RACER</title>
+<style>
+  :root { --hot:#ffb400; --red:#ff2d2d; --ink:#0b0b0d; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:#000; overflow:hidden; font-family:"Oswald","Arial Narrow",Impact,sans-serif; color:#fff; user-select:none; }
+  canvas#game { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  #vignette { position:fixed; inset:0; pointer-events:none; background:radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55) 100%); }
+  #hud { position:fixed; inset:0; pointer-events:none; }
+  #minimapWrap { position:absolute; left:24px; bottom:24px; width:220px; height:220px; border-radius:50%; border:3px solid var(--hot); box-shadow:0 0 18px rgba(255,180,0,.45), inset 0 0 20px #000; overflow:hidden; background:#111; }
+  #minimap { width:100%; height:100%; display:block; }
+  #district { position:absolute; left:24px; bottom:254px; font-size:22px; letter-spacing:3px; text-shadow:0 0 10px #000; color:var(--hot); }
+  #guide { position:absolute; left:24px; bottom:286px; font-size:16px; letter-spacing:2px; color:#fff; text-shadow:0 0 8px #000; }
+  #speedoWrap { position:absolute; right:28px; bottom:20px; width:260px; height:260px; }
+  #speedo { width:100%; height:100%; }
+  #weatherTag { position:absolute; right:28px; top:20px; text-align:right; font-size:16px; letter-spacing:3px; color:#bbb; text-shadow:0 0 8px #000; }
+  #stars { position:absolute; right:28px; top:46px; font-size:34px; letter-spacing:6px; color:#444; }
+  #stars .on { color:#4da6ff; text-shadow:0 0 14px #1e7bff; }
+  #carName { position:absolute; left:50%; top:18px; transform:translateX(-50%); font-size:20px; letter-spacing:6px; color:var(--hot); text-shadow:0 0 10px #000; }
+  #help { position:absolute; left:50%; bottom:14px; transform:translateX(-50%); font-size:13px; letter-spacing:2px; color:#999; text-shadow:0 0 6px #000; white-space:nowrap; }
+  #wanted { position:absolute; right:28px; top:92px; width:260px; text-align:right; font-size:15px; letter-spacing:3px; text-shadow:0 0 8px #000; }
+  #wanted .bar { height:8px; margin-top:6px; background:rgba(255,255,255,.14); border:1px solid #000; }
+  #wanted .fill { height:100%; width:0; background:#4da6ff; }
+  #wanted.spotted .lbl { color:#ff3b3b; animation:blink .5s infinite; }
+  #wanted.evading .lbl { color:#6dd3ff; }
+  #wanted.busting .fill { background:#ff3b3b; }
+  #hpWrap { position:absolute; left:50%; top:52px; transform:translateX(-50%); width:220px; }
+  #hpWrap .lbl { font-size:11px; letter-spacing:3px; color:#aaa; text-align:center; }
+  #hpWrap .bar { height:7px; background:rgba(255,255,255,.14); border:1px solid #000; }
+  #hp { height:100%; width:100%; background:#3ddc84; }
+  #banner { position:fixed; left:0; right:0; top:34%; text-align:center; font-size:clamp(40px,9vw,120px); font-style:italic; letter-spacing:.08em; opacity:0; pointer-events:none; transition:opacity .35s; text-shadow:0 0 30px currentColor, 4px 4px 0 #000; }
+  #banner.show { opacity:1; }
+  #banner small { display:block; font-size:.2em; letter-spacing:.4em; color:#ddd; font-style:normal; text-shadow:none; margin-top:.4em; }
+  #race { position:absolute; left:24px; top:20px; font-size:18px; letter-spacing:3px; text-shadow:0 0 8px #000; display:none; }
+  #race .pos { font-size:64px; font-style:italic; font-weight:700; color:var(--hot); line-height:1; }
+  #race .pos.behind { color:var(--red); }
+  #race div { margin-top:2px; }
+  #prompt { position:absolute; left:50%; bottom:90px; transform:translateX(-50%); font-size:22px; letter-spacing:4px; color:#fff; text-shadow:0 0 12px #000; background:rgba(0,0,0,.55); border:2px solid var(--hot); padding:8px 22px; display:none; white-space:nowrap; }
+  .overlay { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.78); z-index:8; pointer-events:none; }
+  .overlay.open { display:flex; }
+  .card { width:min(760px,92vw); background:linear-gradient(160deg,#17110a,#0b0b0d); border:3px solid var(--hot); box-shadow:0 0 40px rgba(255,150,0,.35); padding:26px 32px; }
+  .card .tag { color:var(--red); letter-spacing:.35em; font-size:14px; }
+  .card h3 { margin:.2em 0 0; font-size:44px; font-style:italic; color:var(--hot); letter-spacing:.05em; }
+  .card .sub { color:#ccc; letter-spacing:.25em; font-size:14px; margin-bottom:14px; }
+  .card .quote { color:#ddd; font-size:20px; line-height:1.4; border-left:4px solid var(--red); padding-left:14px; margin:12px 0; font-family:Georgia,serif; font-style:italic; letter-spacing:0; }
+  .card .row { display:flex; justify-content:space-between; gap:18px; margin:10px 0; font-size:17px; letter-spacing:2px; }
+  .card .stake { border:2px dashed var(--red); padding:10px 14px; margin:14px 0; font-size:19px; letter-spacing:3px; }
+  .card .keys { color:var(--hot); letter-spacing:.25em; font-size:14px; margin-top:18px; }
+  .card b { color:#fff; }
+  .carrow { display:grid; grid-template-columns:1fr 120px 120px 90px; gap:8px; padding:7px 10px; border:1px solid #333; margin:5px 0; font-size:16px; letter-spacing:2px; align-items:center; }
+  .carrow.sel { border-color:var(--hot); background:rgba(255,180,0,.12); }
+  .carrow.locked { opacity:.35; }
+  .bar2 { height:8px; background:#222; } .bar2 i { display:block; height:100%; background:var(--hot); }
+  .two { display:grid; grid-template-columns:1.4fr 1fr; gap:26px; }
+  .bl { font-size:15px; letter-spacing:2px; padding:6px 0; border-bottom:1px solid #2a2a2a; }
+  .bl.done { color:#3ddc84; text-decoration:line-through; } .bl.next { color:var(--hot); } .bl.lock { color:#666; }
+  #customs { position:fixed; left:0; top:0; bottom:0; width:min(440px,50vw); display:none; flex-direction:column; padding:22px 24px; background:linear-gradient(90deg,rgba(6,6,8,.95) 0%,rgba(6,6,8,.92) 82%,transparent); z-index:8; pointer-events:none; overflow:hidden; }
+  #customs.open { display:flex; }
+  #customs h3 { margin:0; font-size:34px; font-style:italic; color:var(--hot); letter-spacing:.06em; }
+  #customs .sub { color:var(--red); letter-spacing:.3em; font-size:12px; margin-bottom:10px; }
+  .crow { display:flex; align-items:center; justify-content:space-between; padding:5px 10px; margin:2px 0; border-left:4px solid transparent; font-size:15px; letter-spacing:2px; color:#bbb; }
+  .crow.sel { border-left-color:var(--hot); background:rgba(255,180,0,.14); color:#fff; }
+  .crow .v { display:flex; gap:5px; align-items:center; }
+  .sw { width:16px; height:16px; border:2px solid #000; outline:1px solid #444; }
+  .sw.on { outline:2px solid #fff; transform:scale(1.25); }
+  .pip { width:14px; height:8px; background:#333; } .pip.on { background:var(--hot); } .pip.cur { background:#3ddc84; }
+  .price { color:var(--hot); font-size:12px; margin-left:8px; min-width:52px; text-align:right; }
+  #customs .foot { margin-top:auto; border-top:1px solid #333; padding-top:10px; letter-spacing:2px; font-size:14px; }
+  #customs .foot b { color:var(--hot); font-size:22px; }
+  #customs .stats { margin:10px 0 0; font-size:12px; letter-spacing:2px; color:#999; }
+  #customs .stats div { display:flex; justify-content:space-between; } #customs .stats .up { color:#3ddc84; }
+  #cash { position:absolute; left:50%; top:72px; transform:translateX(-50%); font-size:15px; letter-spacing:3px; color:#3ddc84; text-shadow:0 0 8px #000; }
+  #bigmap { position:fixed; inset:0; display:none; background:rgba(0,0,0,.86); align-items:center; justify-content:center; flex-direction:column; pointer-events:auto; }
+  #bigmap.open { display:flex; }
+  #bigmap canvas { border:3px solid var(--hot); box-shadow:0 0 30px rgba(255,180,0,.4); cursor:crosshair; max-width:92vmin; max-height:92vmin; }
+  #bigmap p { letter-spacing:3px; color:var(--hot); margin:10px 0 0; }
+  #title { position:fixed; inset:0; background:radial-gradient(ellipse at 50% 40%, #2a1500 0%, #000 70%); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:10; text-align:center; }
+  #title h1 { font-size:clamp(48px,11vw,150px); margin:0; letter-spacing:.06em; font-style:italic; color:var(--hot); text-shadow:0 0 30px rgba(255,120,0,.7), 4px 4px 0 #7a1a00; line-height:.9; }
+  #title h2 { margin:.4em 0 0; font-weight:400; letter-spacing:.5em; color:var(--red); font-size:clamp(14px,2.2vw,28px); }
+  #title p { max-width:640px; color:#bbb; letter-spacing:1px; line-height:1.5; margin:28px 20px; }
+  #title .go { color:var(--hot); letter-spacing:.4em; animation:blink 1.1s infinite; }
+  @keyframes blink { 50% { opacity:.15; } }
+  #toast { position:fixed; left:10%; right:10%; top:62%; text-align:center; font-size:30px; font-style:italic; letter-spacing:3px; color:var(--hot); text-shadow:0 0 20px rgba(255,120,0,.8), 2px 2px 0 #000; opacity:0; transition:opacity .4s; pointer-events:none; }
+  #toast.show { opacity:1; }
+  #flash { position:fixed; inset:0; background:#cfe0ff; opacity:0; pointer-events:none; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="vignette"></div>
+<div id="flash"></div>
+<div id="hud">
+  <div id="carName"></div>
+  <div id="weatherTag"></div>
+  <div id="stars"></div>
+  <div id="wanted"><div class="lbl"></div><div class="bar"><div class="fill"></div></div></div>
+  <div id="cash"></div>
+  <div id="hpWrap"><div class="lbl">DAMAGE</div><div class="bar"><div id="hp"></div></div></div>
+  <div id="race"><div class="pos">1ST</div><div class="gap"></div><div class="cp"></div><div class="time"></div></div>
+  <div id="prompt"></div>
+  <div id="guide"></div>
+  <div id="district"></div>
+  <div id="minimapWrap"><canvas id="minimap" width="440" height="440"></canvas></div>
+  <div id="speedoWrap"><canvas id="speedo" width="520" height="520"></canvas></div>
+  <div id="help">W/S throttle·brake &nbsp; A/D steer &nbsp; SPACE handbrake &nbsp; SHIFT nitro &nbsp; M map &nbsp; C camera &nbsp; 1-4 weather &nbsp; TAB garage &nbsp; ENTER challenge &nbsp; R reset</div>
+</div>
+<div id="bigmap"><canvas id="bigmapCanvas" width="900" height="900"></canvas><p>CLICK TO SET ROUTE &nbsp;·&nbsp; M TO CLOSE &nbsp;·&nbsp; X CLEARS ROUTE</p></div>
+<div id="dialog" class="overlay"><div class="card" id="dialogCard"></div></div>
+<div id="customs"></div>
+<div id="garage" class="overlay"><div class="card" id="garageCard"></div></div>
+<div id="toast"></div>
+<div id="banner"></div>
+<div id="title">
+  <h1>MASTER<br>RACER</h1>
+  <h2>SOUTH LONDON</h2>
+  <p>You left Zamość in a Fiat 126. You have a Maluch, a map and nothing to lose. Beat London's best, take their cars, and stay ahead of the law.</p>
+  <div class="go">PRESS ENTER</div>
+</div>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
