@@ -1,0 +1,1110 @@
+{
+ "academy": {
+  "name": "O2 Academy Brixton",
+  "notes": "Brixton Academy (O2 Academy Brixton), 211 Stockwell Road",
+  "street": "Stockwell Road",
+  "dist_to_road_m": 25.5,
+  "footprint_bbox_m": [
+   71.5,
+   95.8
+  ],
+  "bbox_x": [
+   -57.04,
+   14.45
+  ],
+  "bbox_y": [
+   -14.64,
+   81.21
+  ],
+  "polygon_blender_xy": [
+   [
+    4.68,
+    -13.14
+   ],
+   [
+    3.32,
+    -14.62
+   ],
+   [
+    2.53,
+    -14.64
+   ],
+   [
+    -4.02,
+    -1.35
+   ],
+   [
+    -35.09,
+    -3.21
+   ],
+   [
+    -57.04,
+    46.94
+   ],
+   [
+    -23.01,
+    81.21
+   ],
+   [
+    13.26,
+    -1.41
+   ],
+   [
+    12.15,
+    -3.33
+   ],
+   [
+    13.74,
+    -5.12
+   ],
+   [
+    14.45,
+    -7.43
+   ],
+   [
+    14.3,
+    -9.83
+   ],
+   [
+    13.25,
+    -11.97
+   ],
+   [
+    11.46,
+    -13.56
+   ],
+   [
+    9.21,
+    -14.34
+   ],
+   [
+    6.81,
+    -14.19
+   ]
+  ],
+  "note_frame": "Blender XY, metres, origin = footprint centroid. Street is toward -Y (front facade faces -Y)."
+ },
+ "townhall": {
+  "name": "Lambeth Town Hall",
+  "notes": "Lambeth Town Hall, Brixton Hill / Acre Lane, 41 m clock tower",
+  "street": "Brixton Hill",
+  "dist_to_road_m": 33.4,
+  "footprint_bbox_m": [
+   76.2,
+   65.4
+  ],
+  "bbox_x": [
+   -36.28,
+   39.9
+  ],
+  "bbox_y": [
+   -18.23,
+   47.16
+  ],
+  "polygon_blender_xy": [
+   [
+    -36.08,
+    -16.94
+   ],
+   [
+    -36.28,
+    -8.24
+   ],
+   [
+    -34.8,
+    -8.21
+   ],
+   [
+    -35.14,
+    9.85
+   ],
+   [
+    -22.75,
+    10.18
+   ],
+   [
+    -22.56,
+    -0.45
+   ],
+   [
+    -16.17,
+    -0.37
+   ],
+   [
+    -16.07,
+    -7.93
+   ],
+   [
+    -6.13,
+    -7.9
+   ],
+   [
+    -6.39,
+    -2.43
+   ],
+   [
+    0.31,
+    12.85
+   ],
+   [
+    -1.35,
+    14.68
+   ],
+   [
+    -2.09,
+    14.08
+   ],
+   [
+    -8.67,
+    20.99
+   ],
+   [
+    -9.52,
+    20.13
+   ],
+   [
+    -10.25,
+    20.92
+   ],
+   [
+    -16.82,
+    14.57
+   ],
+   [
+    -33.2,
+    31.45
+   ],
+   [
+    -16.39,
+    47.16
+   ],
+   [
+    -13.63,
+    44.14
+   ],
+   [
+    -11.75,
+    45.93
+   ],
+   [
+    15.37,
+    17.41
+   ],
+   [
+    14.64,
+    16.81
+   ],
+   [
+    33.97,
+    -3.33
+   ],
+   [
+    34.76,
+    -2.6
+   ],
+   [
+    38.1,
+    -6.04
+   ],
+   [
+    37.59,
+    -7.52
+   ],
+   [
+    39.79,
+    -10.21
+   ],
+   [
+    39.9,
+    -11.88
+   ],
+   [
+    39.03,
+    -13.82
+   ],
+   [
+    37.52,
+    -14.93
+   ],
+   [
+    36.01,
+    -15.18
+   ],
+   [
+    34.57,
+    -14.77
+   ],
+   [
+    33.85,
+    -17.08
+   ],
+   [
+    27.51,
+    -17.02
+   ],
+   [
+    27.55,
+    -16.26
+   ],
+   [
+    1.32,
+    -16.51
+   ],
+   [
+    1.23,
+    -17.4
+   ],
+   [
+    -3.23,
+    -17.49
+   ],
+   [
+    -3.23,
+    -16.64
+   ],
+   [
+    -30.89,
+    -16.78
+   ],
+   [
+    -30.84,
+    -18.05
+   ],
+   [
+    -34.41,
+    -18.23
+   ],
+   [
+    -34.37,
+    -16.93
+   ]
+  ],
+  "note_frame": "Blender XY, metres, origin = footprint centroid. Street is toward -Y (front facade faces -Y)."
+ },
+ "windmill": {
+  "name": "Brixton Windmill",
+  "notes": "Ashby's Mill, Windmill Gardens, Blenheim Gardens",
+  "street": "Ramilles Close",
+  "dist_to_road_m": 84.3,
+  "footprint_bbox_m": [
+   6.4,
+   6.4
+  ],
+  "bbox_x": [
+   -3.28,
+   3.09
+  ],
+  "bbox_y": [
+   -3.05,
+   3.32
+  ],
+  "polygon_blender_xy": [
+   [
+    2.36,
+    -1.83
+   ],
+   [
+    1.65,
+    -2.52
+   ],
+   [
+    -0.27,
+    -3.05
+   ],
+   [
+    -2.23,
+    -2.28
+   ],
+   [
+    -3.28,
+    -0.57
+   ],
+   [
+    -3.28,
+    0.5
+   ],
+   [
+    -2.38,
+    2.51
+   ],
+   [
+    -0.34,
+    3.32
+   ],
+   [
+    1.72,
+    2.83
+   ],
+   [
+    2.96,
+    1.05
+   ],
+   [
+    3.09,
+    0.03
+   ]
+  ],
+  "note_frame": "Blender XY, metres, origin = footprint centroid. Street is toward -Y (front facade faces -Y)."
+ },
+ "brixton_village": {
+  "name": "Brixton Village",
+  "notes": "Brixton Village / Granville Arcade covered market",
+  "street": "Atlantic Road",
+  "dist_to_road_m": 27.5,
+  "footprint_bbox_m": [
+   104.0,
+   62.1
+  ],
+  "bbox_x": [
+   -46.93,
+   57.11
+  ],
+  "bbox_y": [
+   -20.89,
+   41.21
+  ],
+  "polygon_blender_xy": [
+   [
+    14.06,
+    -9.86
+   ],
+   [
+    13.76,
+    -11.56
+   ],
+   [
+    -9.43,
+    -11.43
+   ],
+   [
+    -9.68,
+    -20.48
+   ],
+   [
+    -23.26,
+    -20.89
+   ],
+   [
+    -23.58,
+    -11.55
+   ],
+   [
+    -46.93,
+    -12.84
+   ],
+   [
+    -46.68,
+    -10.08
+   ],
+   [
+    -40.19,
+    -4.99
+   ],
+   [
+    -37.81,
+    -1.42
+   ],
+   [
+    -34.34,
+    -0.68
+   ],
+   [
+    -32.86,
+    5.25
+   ],
+   [
+    -22.04,
+    5.33
+   ],
+   [
+    -5.64,
+    41.21
+   ],
+   [
+    44.74,
+    19.41
+   ],
+   [
+    48.89,
+    17.31
+   ],
+   [
+    48.52,
+    16.4
+   ],
+   [
+    57.11,
+    12.62
+   ],
+   [
+    55.73,
+    9.59
+   ],
+   [
+    49.62,
+    -11.34
+   ]
+  ],
+  "note_frame": "Blender XY, metres, origin = footprint centroid. Street is toward -Y (front facade faces -Y)."
+ },
+ "brixton_station": {
+  "name": "Brixton Station (rail) + arches",
+  "notes": "Brixton railway station on a viaduct + arches along Station Road",
+  "street": "Brixton Road",
+  "dist_to_road_m": 43.9,
+  "footprint_bbox_m": [
+   28.0,
+   63.5
+  ],
+  "bbox_x": [
+   -14.48,
+   13.51
+  ],
+  "bbox_y": [
+   -31.8,
+   31.65
+  ],
+  "polygon_blender_xy": [
+   [
+    6.97,
+    31.65
+   ],
+   [
+    13.51,
+    -28.79
+   ],
+   [
+    -6.0,
+    -31.8
+   ],
+   [
+    -14.48,
+    28.94
+   ]
+  ],
+  "note_frame": "Blender XY, metres, origin = footprint centroid. Street is toward -Y (front facade faces -Y)."
+ },
+ "ritzy": {
+  "name": "Ritzy Cinema",
+  "notes": "Ritzy Cinema, Brixton Oval, Coldharbour Lane",
+  "street": "Coldharbour Lane",
+  "dist_to_road_m": 13.1,
+  "footprint_bbox_m": [
+   41.5,
+   16.7
+  ],
+  "bbox_x": [
+   -25.82,
+   15.67
+  ],
+  "bbox_y": [
+   -5.71,
+   10.98
+  ],
+  "polygon_blender_xy": [
+   [
+    -25.82,
+    -3.34
+   ],
+   [
+    -25.15,
+    10.98
+   ],
+   [
+    15.67,
+    7.89
+   ],
+   [
+    15.03,
+    -4.13
+   ],
+   [
+    13.14,
+    -5.71
+   ],
+   [
+    7.13,
+    -5.7
+   ]
+  ],
+  "note_frame": "Blender XY, metres, origin = footprint centroid. Street is toward -Y (front facade faces -Y)."
+ },
+ "library": {
+  "name": "Peckham Library",
+  "notes": "Peckham Library, Will Alsop",
+  "street": "Peckham Hill Street",
+  "dist_to_road_m": 34.1,
+  "footprint_bbox_m": [
+   29.3,
+   44.7
+  ],
+  "bbox_x": [
+   -15.94,
+   13.38
+  ],
+  "bbox_y": [
+   -18.29,
+   26.45
+  ],
+  "polygon_blender_xy": [
+   [
+    -11.06,
+    -18.29
+   ],
+   [
+    -15.94,
+    23.58
+   ],
+   [
+    8.49,
+    26.45
+   ],
+   [
+    13.38,
+    -15.42
+   ],
+   [
+    5.14,
+    -16.32
+   ]
+  ],
+  "note_frame": "Blender XY, metres, origin = footprint centroid. Street is toward -Y (front facade faces -Y)."
+ },
+ "levels": {
+  "name": "Peckham Levels car park",
+  "notes": "Multi-storey car park 95a Rye Lane (Peckham Levels / Bold Tendencies)",
+  "street": "Cerise Road",
+  "dist_to_road_m": 24.5,
+  "footprint_bbox_m": [
+   63.2,
+   54.6
+  ],
+  "bbox_x": [
+   -32.74,
+   30.42
+  ],
+  "bbox_y": [
+   -30.34,
+   24.25
+  ],
+  "polygon_blender_xy": [
+   [
+    -16.7,
+    24.25
+   ],
+   [
+    5.18,
+    11.83
+   ],
+   [
+    30.42,
+    -0.67
+   ],
+   [
+    13.85,
+    -30.34
+   ],
+   [
+    -32.74,
+    -5.07
+   ]
+  ],
+  "note_frame": "Blender XY, metres, origin = footprint centroid. Street is toward -Y (front facade faces -Y)."
+ },
+ "bussey": {
+  "name": "Bussey Building",
+  "notes": "Bussey Building, Copeland Park, Rye Lane",
+  "street": "Bournemouth Road",
+  "dist_to_road_m": 82.4,
+  "footprint_bbox_m": [
+   119.4,
+   19.2
+  ],
+  "bbox_x": [
+   -66.19,
+   53.23
+  ],
+  "bbox_y": [
+   -8.37,
+   10.83
+  ],
+  "polygon_blender_xy": [
+   [
+    -65.34,
+    10.83
+   ],
+   [
+    11.45,
+    5.09
+   ],
+   [
+    53.23,
+    -1.21
+   ],
+   [
+    52.89,
+    -8.37
+   ],
+   [
+    13.96,
+    -6.13
+   ],
+   [
+    -66.19,
+    -0.21
+   ]
+  ],
+  "note_frame": "Blender XY, metres, origin = footprint centroid. Street is toward -Y (front facade faces -Y)."
+ },
+ "peckham_station": {
+  "name": "Peckham Rye station",
+  "notes": "Peckham Rye station, Italianate Victorian, two viaducts",
+  "street": "Blenheim Grove",
+  "dist_to_road_m": 44.4,
+  "footprint_bbox_m": [
+   110.3,
+   57.8
+  ],
+  "bbox_x": [
+   -82.64,
+   27.66
+  ],
+  "bbox_y": [
+   -30.0,
+   27.77
+  ],
+  "polygon_blender_xy": [
+   [
+    1.27,
+    -10.73
+   ],
+   [
+    -0.43,
+    10.62
+   ],
+   [
+    -21.84,
+    9.59
+   ],
+   [
+    -22.59,
+    25.37
+   ],
+   [
+    26.2,
+    27.77
+   ],
+   [
+    27.66,
+    13.98
+   ],
+   [
+    24.3,
+    13.96
+   ],
+   [
+    25.09,
+    7.47
+   ],
+   [
+    18.18,
+    6.96
+   ],
+   [
+    19.26,
+    -3.54
+   ],
+   [
+    26.19,
+    -3.26
+   ],
+   [
+    26.82,
+    -13.79
+   ],
+   [
+    7.28,
+    -14.51
+   ],
+   [
+    7.73,
+    -25.51
+   ],
+   [
+    -82.48,
+    -30.0
+   ],
+   [
+    -82.64,
+    -14.37
+   ]
+  ],
+  "note_frame": "Blender XY, metres, origin = footprint centroid. Street is toward -Y (front facade faces -Y)."
+ },
+ "clock": {
+  "name": "Jones & Higgins clock tower",
+  "notes": "Jones & Higgins department store clock tower, Rye Lane / Peckham High Street corner",
+  "street": "Peckham High Street",
+  "dist_to_road_m": 22.2,
+  "footprint_bbox_m": [
+   12.9,
+   29.0
+  ],
+  "bbox_x": [
+   -5.77,
+   7.16
+  ],
+  "bbox_y": [
+   -16.42,
+   12.6
+  ],
+  "polygon_blender_xy": [
+   [
+    7.16,
+    -8.1
+   ],
+   [
+    -5.77,
+    -16.42
+   ],
+   [
+    -3.67,
+    12.18
+   ],
+   [
+    0.13,
+    12.6
+   ],
+   [
+    2.15,
+    -0.26
+   ]
+  ],
+  "note_frame": "Blender XY, metres, origin = footprint centroid. Street is toward -Y (front facade faces -Y)."
+ },
+ "streatham_hub": {
+  "name": "Streatham Ice & Leisure Centre",
+  "notes": "Streatham Ice and Leisure Centre + Tesco and flats above",
+  "street": "Natal Road",
+  "dist_to_road_m": 32.4,
+  "footprint_bbox_m": [
+   85.6,
+   52.5
+  ],
+  "bbox_x": [
+   -53.14,
+   32.5
+  ],
+  "bbox_y": [
+   -24.23,
+   28.26
+  ],
+  "polygon_blender_xy": [
+   [
+    32.5,
+    22.69
+   ],
+   [
+    30.38,
+    -4.03
+   ],
+   [
+    20.64,
+    -3.71
+   ],
+   [
+    19.4,
+    -24.23
+   ],
+   [
+    -53.14,
+    -18.98
+   ],
+   [
+    -49.78,
+    28.26
+   ]
+  ],
+  "note_frame": "Blender XY, metres, origin = footprint centroid. Street is toward -Y (front facade faces -Y)."
+ },
+ "st_leonards": {
+  "name": "St Leonard's Church Streatham",
+  "notes": "St Leonard's Church, Streatham High Road, Tudor tower",
+  "street": "Streatham High Road",
+  "dist_to_road_m": 37.0,
+  "footprint_bbox_m": [
+   39.6,
+   37.2
+  ],
+  "bbox_x": [
+   -27.38,
+   12.2
+  ],
+  "bbox_y": [
+   -12.83,
+   24.41
+  ],
+  "polygon_blender_xy": [
+   [
+    3.21,
+    7.79
+   ],
+   [
+    5.06,
+    10.13
+   ],
+   [
+    8.23,
+    7.53
+   ],
+   [
+    6.96,
+    5.9
+   ],
+   [
+    12.2,
+    1.62
+   ],
+   [
+    9.43,
+    -1.81
+   ],
+   [
+    11.05,
+    -3.08
+   ],
+   [
+    5.99,
+    -9.44
+   ],
+   [
+    4.18,
+    -7.93
+   ],
+   [
+    0.97,
+    -11.95
+   ],
+   [
+    -1.63,
+    -9.92
+   ],
+   [
+    -4.05,
+    -12.83
+   ],
+   [
+    -9.9,
+    -8.25
+   ],
+   [
+    -6.71,
+    -4.37
+   ],
+   [
+    -27.38,
+    12.22
+   ],
+   [
+    -17.61,
+    24.41
+   ]
+  ],
+  "note_frame": "Blender XY, metres, origin = footprint centroid. Street is toward -Y (front facade faces -Y)."
+ },
+ "english_martyrs": {
+  "name": "English Martyrs Church Streatham",
+  "notes": "English Martyrs RC church, Streatham, twin spires",
+  "street": "Mitcham Lane",
+  "dist_to_road_m": 23.5,
+  "footprint_bbox_m": [
+   37.2,
+   38.0
+  ],
+  "bbox_x": [
+   -21.75,
+   15.47
+  ],
+  "bbox_y": [
+   -16.12,
+   21.84
+  ],
+  "polygon_blender_xy": [
+   [
+    13.37,
+    21.84
+   ],
+   [
+    14.16,
+    17.94
+   ],
+   [
+    8.08,
+    16.73
+   ],
+   [
+    13.29,
+    -8.29
+   ],
+   [
+    14.45,
+    -8.1
+   ],
+   [
+    15.47,
+    -13.02
+   ],
+   [
+    14.23,
+    -13.26
+   ],
+   [
+    14.46,
+    -14.5
+   ],
+   [
+    9.54,
+    -15.52
+   ],
+   [
+    9.21,
+    -14.1
+   ],
+   [
+    -1.0,
+    -16.12
+   ],
+   [
+    -4.82,
+    2.7
+   ],
+   [
+    -9.98,
+    1.89
+   ],
+   [
+    -9.61,
+    0.61
+   ],
+   [
+    -13.97,
+    0.02
+   ],
+   [
+    -13.74,
+    -1.23
+   ],
+   [
+    -11.06,
+    -1.11
+   ],
+   [
+    -10.76,
+    -2.89
+   ],
+   [
+    -12.0,
+    -3.12
+   ],
+   [
+    -12.15,
+    -3.67
+   ],
+   [
+    -17.56,
+    -3.81
+   ],
+   [
+    -21.75,
+    15.25
+   ],
+   [
+    6.27,
+    21.44
+   ],
+   [
+    5.87,
+    20.31
+   ]
+  ],
+  "note_frame": "Blender XY, metres, origin = footprint centroid. Street is toward -Y (front facade faces -Y)."
+ },
+ "theatre": {
+  "name": "Streatham Hill Theatre",
+  "notes": "Streatham Hill Theatre, Sprague 1929, Streatham Hill",
+  "street": "Blairderry Road",
+  "dist_to_road_m": 33.3,
+  "footprint_bbox_m": [
+   33.3,
+   61.2
+  ],
+  "bbox_x": [
+   -19.7,
+   13.61
+  ],
+  "bbox_y": [
+   -25.01,
+   36.21
+  ],
+  "polygon_blender_xy": [
+   [
+    -19.7,
+    34.01
+   ],
+   [
+    10.84,
+    36.21
+   ],
+   [
+    13.61,
+    -21.78
+   ],
+   [
+    11.99,
+    -23.43
+   ],
+   [
+    -16.73,
+    -25.01
+   ]
+  ],
+  "note_frame": "Blender XY, metres, origin = footprint centroid. Street is toward -Y (front facade faces -Y)."
+ },
+ "stmatthews": {
+  "name": "St Matthew's Church Brixton",
+  "notes": "St Matthew's Church, Brixton Hill / Effra Road, Greek Revival 1822 (Bedford & Porden), Grade II*: tall hexastyle Doric portico, tower with stepped lantern",
+  "street": "Effra Road",
+  "dist_to_road_m": 0.9,
+  "footprint_bbox_m": [
+   24,
+   34
+  ],
+  "bbox_x": [
+   -12,
+   12
+  ],
+  "bbox_y": [
+   -17,
+   17
+  ],
+  "polygon_blender_xy": [
+   [
+    -12,
+    -17
+   ],
+   [
+    12,
+    -17
+   ],
+   [
+    12,
+    17
+   ],
+   [
+    -12,
+    17
+   ]
+  ],
+  "note_frame": "Blender XY, metres, origin = footprint centroid. Street is toward -Y (front facade faces -Y)."
+ }
+}
