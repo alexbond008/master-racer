@@ -22,3 +22,8 @@ See `SPEC.md`, `research/`, and `CREDITS.md`.
 ## Credits / licences
 - Kenney Car Kit (CC0) for civilian traffic models.
 - Road data: © OpenStreetMap contributors (ODbL), `public/data/southlondon.json` is derived from it.
+
+## Assets
+- **World**: real OpenStreetMap roads, parks and 76k building footprints at 1:1 scale (`public/data/*`), streamed by distance.
+- **Cars and landmarks**: modelled in Blender via Python (`blender/*.py`, run headless: `blender -b --python <script>`), exported to `public/models/{cars,landmarks}/*.glb`. See `blender/CONVENTIONS.md`.
+- Dev helpers: `window.__game` (teleportTo, police, traffic...), `game.devCam = {x,y,z,lx,ly,lz,fov,showCar}` for a free camera.

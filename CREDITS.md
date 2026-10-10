@@ -4,3 +4,4 @@
 - London reference research: `research/london.md` (sources listed there). Car-model sourcing notes: `research/cars.md`.
 - Everything else (cars, world, music, audio) is procedural and original.
 - **Road network, parks and landmark positions**: © OpenStreetMap contributors, licensed under the ODbL (https://www.openstreetmap.org/copyright). `public/data/southlondon.json` is a simplified, rescaled extract.
+- **Cars and landmark models** in `public/models/cars` and `public/models/landmarks` were built for this project with Blender scripts (see `blender/`); they are original work, with shapes informed by public reference material (Wikipedia, Wikimedia Commons, Historic England).
