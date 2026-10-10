@@ -6,12 +6,12 @@
  "height": 37.55,
  "notes": "O2 Academy Brixton: cream/green faience Art Deco front block (12.5 m + pylons), lit marquee + vertical blade sign, rounded foyer with copper dome (~10.5+7 m), red-brick auditorium 21 m, brick fly tower 34 m. Footprint = OSM polygon; origin = footprint centroid; front -Y. Marquee projects ~3.6 m beyond the footprint front.",
  "bbox_x": [
-  -57.54,
+  -58.66,
   14.94
  ],
  "bbox_y": [
   -16.28,
-  81.6
+  82.51
  ],
- "triangles": 14753
+ "triangles": 32383
 }

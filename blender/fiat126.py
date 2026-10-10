@@ -22,17 +22,17 @@ car.mats = L.standard_materials('#c0141c', rim='#a9acb0', rim_metal=0.6, rim_rou
 
 keys = dict(
     zb=0.19,
-    zt=[(YF, 0.785), (-1.35, 0.815), (-1.0, 0.84), (-0.66, 0.855), (-0.58, 0.875), (-0.38, 1.105),
-        (-0.17, 1.335), (0.0, 1.342), (0.5, 1.343), (0.93, 1.335), (0.98, 1.322), (1.09, 1.14),
-        (1.20, 0.955), (1.32, 0.915), (1.45, 0.86), (YR, 0.80)],
-    zs=[(YF, 0.64), (-1.0, 0.68), (-0.7, 0.72), (-0.45, 0.82), (1.0, 0.84), (1.25, 0.80), (YR, 0.70)],
-    hw=[(YF, 0.66), (-1.2, HW), (1.2, HW), (YR, 0.665)],
-    tw=[(YF, 0.57), (-1.1, 0.585), (-0.65, 0.60), (-0.3, 0.575), (0.5, 0.575), (1.0, 0.58), (1.3, 0.60), (YR, 0.56)],
+    zt=[(YF, 0.77), (-1.35, 0.80), (-1.0, 0.83), (-0.82, 0.85), (-0.74, 0.87), (-0.52, 1.10), (-0.30, 1.31),
+        (-0.15, 1.338), (0.2, 1.345), (0.55, 1.34), (0.85, 1.30), (1.0, 1.15), (1.12, 1.02), (1.24, 0.95),
+        (1.36, 0.92), (1.46, 0.88), (YR, 0.82)],
+    zs=[(YF, 0.64), (-1.0, 0.68), (-0.85, 0.74), (-0.6, 0.82), (0.9, 0.84), (1.2, 0.80), (YR, 0.72)],
+    hw=[(YF, 0.665), (-1.2, HW), (1.2, HW), (YR, 0.675)],
+    tw=[(YF, 0.58), (-1.1, 0.59), (-0.75, 0.60), (-0.35, 0.575), (0.5, 0.57), (1.0, 0.585), (1.3, 0.60), (YR, 0.59)],
     bw=0.93,
-    rt=[(YF, 0.09), (-0.7, 0.09), (-0.5, 0.08), (1.1, 0.08), (1.3, 0.12), (YR, 0.12)],
+    rt=[(YF, 0.08), (-0.9, 0.08), (-0.6, 0.08), (1.1, 0.08), (1.3, 0.10), (YR, 0.10)],
     rs=0.10, rb=0.05,
 )
-body = L.loft_body(keys, YF, YR, 0.05, 0.05, step=0.04, k=4)
+body = L.loft_body(keys, YF, YR, 0.04, 0.045, step=0.04, k=4)
 
 # wheel arches
 R_ARCH = R_W + 0.045
@@ -41,27 +41,39 @@ cut = L.wheel_cutter(hubs_cut, R_ARCH, 0.40, 1.3)
 body = L.boolean_cut(body, cut)
 car.set_bm('body', body.copy(), 'Paint')
 surf = body
+SF = L.Surf(body)
+for s_ in (1, -1):
+    for y_ in (-WB / 2, WB / 2):
+        L.flare_lip(car, SF, s_, y_, R_W, R_ARCH, depth=0.016, width=0.03)
 
 # ---------------------------------------------------------------- arch liners (trim)
 for s in (1, -1):
     for y in (-WB / 2, WB / 2):
         L.arch_liner(car, 'trim', 'Trim', s, y, R_W, R_ARCH - 0.004, 0.405, 0.655, 0.215)
 
-# ---------------------------------------------------------------- glass
-car.decal('glass', 'Glass', surf, [(-0.47, 0.905), (0.47, 0.905), (0.455, 1.285), (-0.455, 1.285)], L.front(0.3), 0.004)
-car.decal('glass', 'Glass', surf, [(-0.46, 0.975), (0.46, 0.975), (0.45, 1.285), (-0.45, 1.285)], L.rear(0.6), 0.004)
+# ---------------------------------------------------------------- glass (windows are real openings)
+wins = []
+
+
+def win(pts, frame):
+    wins.append((pts, frame))
+    car.decal('glass', 'Glass', surf, pts, frame, 0.001)
+
+
+win([(-0.47, 0.905), (0.47, 0.905), (0.455, 1.285), (-0.455, 1.285)], L.front(0.3))
+win([(-0.46, 0.99), (0.46, 0.99), (0.45, 1.255), (-0.45, 1.255)], L.rear(0.7))
 for s in (1, -1):
-    door = [(-0.55, 0.895), (-0.25, 1.275), (-0.2, 1.292), (0.17, 1.292), (0.2, 1.27), (0.2, 0.895)]
-    quarter = [(0.31, 0.895), (0.31, 1.282), (0.84, 1.292), (0.95, 1.255), (1.07, 1.03), (1.1, 0.93), (1.1, 0.895)]
-    car.decal('glass', 'Glass', surf, door, L.side(s), 0.004)
-    car.decal('glass', 'Glass', surf, quarter, L.side(s), 0.004)
+    door = [(-0.67, 0.895), (-0.37, 1.275), (-0.29, 1.30), (0.12, 1.30), (0.14, 1.27), (0.14, 0.895)]
+    quarter = [(0.26, 0.895), (0.26, 1.29), (0.84, 1.295), (0.95, 1.22), (1.10, 1.04), (1.23, 0.935), (1.23, 0.895)]
+    win(door, L.side(s))
+    win(quarter, L.side(s))
     # door shut lines + handle
-    car.strip('trim', 'Trim', surf, [(-0.565, 0.24), (-0.565, 0.84)], 0.006, L.side(s), 0.004)
-    car.strip('trim', 'Trim', surf, [(0.245, 0.24), (0.245, 0.9)], 0.006, L.side(s), 0.004)
-    car.strip('trim', 'Trim', surf, [(-0.565, 0.24), (0.245, 0.24)], 0.006, L.side(s), 0.004)
-    car.decal('trim', 'Chrome', surf, L.rrect_pts(0.12, 0.79, 0.075, 0.022, 0.008), L.side(s), 0.012, 1)
+    car.strip('trim', 'Trim', surf, [(-0.725, 0.24), (-0.725, 0.85)], 0.006, L.side(s), 0.004)
+    car.strip('trim', 'Trim', surf, [(0.20, 0.24), (0.20, 0.9)], 0.006, L.side(s), 0.004)
+    car.strip('trim', 'Trim', surf, [(-0.725, 0.24), (0.20, 0.24)], 0.006, L.side(s), 0.004)
+    car.decal('trim', 'Chrome', surf, L.rrect_pts(0.06, 0.79, 0.075, 0.022, 0.008), L.side(s), 0.012, 1)
     # thin chrome belt moulding
-    car.strip('trim', 'Chrome', surf, [(-0.50, 0.855), (1.0, 0.86)], 0.009, L.side(s), 0.004)
+    car.strip('trim', 'Chrome', surf, [(-0.62, 0.855), (1.0, 0.86)], 0.009, L.side(s), 0.004)
 
 # ---------------------------------------------------------------- front face
 for sx in (1, -1):
@@ -92,9 +104,9 @@ for i in range(6):
 car.decal('trim', 'Plate', surf, L.rrect_pts(0, 0.43, 0.52, 0.11, 0.008), L.rear(1.45), 0.005, 2)
 car.decal('trim', 'Chrome', surf, L.circle_pts(0.30, 0.43, 0.012, n=8), L.rear(1.45), 0.005, 0)
 # louvres on the engine lid (sloping part)
-car.decal('trim', 'Trim', surf, L.rrect_pts(0, 1.415, 0.62, 0.16, 0.02), L.top(0.6), 0.004, 3)
+car.decal('trim', 'Trim', surf, L.rrect_pts(0, 1.37, 0.62, 0.15, 0.02), L.top(0.6), 0.004, 3)
 for i in range(4):
-    y = 1.355 + i * 0.033
+    y = 1.325 + i * 0.033
     car.strip('body', 'Paint', surf, [(-0.27, y), (0.27, y)], 0.012, L.top(0.6), 0.0075, 0.05)
 
 # ---------------------------------------------------------------- bumpers (chrome, thin)
@@ -122,15 +134,12 @@ for side in (1, -1):
     rp = rp + seg if side == 1 else list(reversed(seg)) + rp
 car.sweep('trim', 'Chrome', rp, bsec, (0, 1, 0))
 
-# ---------------------------------------------------------------- interior (seen through glass)
-car.box('interior', 'Interior', (0, 0.15, 0.30), (1.1, 1.6, 0.02))
-for sx in (-0.30, 0.30):
-    car.box('interior', 'Interior', (sx, -0.05, 0.50), (0.46, 0.46, 0.14), 0.03)
-    car.box('interior', 'Interior', (sx, 0.17, 0.78), (0.46, 0.10, 0.50), 0.03)
-car.box('interior', 'Interior', (0, 0.80, 0.52), (1.0, 0.40, 0.14), 0.03)
-car.box('interior', 'Interior', (0, 0.93, 0.80), (1.0, 0.10, 0.45), 0.03)
-car.box('interior', 'Interior', (0, -0.42, 0.78), (1.15, 0.22, 0.14), 0.03)
-car.box('interior', 'Interior', (-0.30, -0.22, 0.80), (0.30, 0.02, 0.30), 0.01, rot=Matrix.Rotation(0.5, 4, 'X'))
+# ---------------------------------------------------------------- interior (windows are open, so it is visible)
+L.cut_openings(car.objs['body'][0], wins)
+shell = L.interior_shell(keys, -0.70, 1.08, 0.30, 0.04, wins, cutter=L.wheel_cutter(hubs_cut, R_ARCH + 0.01, 0.40, 1.3))
+car.add_bm('interior', 'Interior', shell)
+L.furnish(car, dict(dside=+1, sx=0.28, floor=0.30, dash=(-0.70, 0.27, 0.82, 0.60), wheel=(-0.42, 0.82, 0.20, 0.75),
+                    seat=(-0.05, 0.46), rear=(0.62, 0.86, 0.98, 0.36), shelf=(1.02, 0.88, 0.22, 0.90)))
 
 # ---------------------------------------------------------------- wheels
 objs_hub = {}

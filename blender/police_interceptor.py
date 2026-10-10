@@ -10,6 +10,7 @@ spec = dict(
     name='interceptor', L=4.85, W=1.85, wb=2.89, fo=0.90, r=0.33, rim_r=0.215, tyre_w=0.235, spokes=5, arch_gap=0.035,
     hw=0.855, tumble=0.04, inset=0.09, lean=0.24, crown=0.02,
     plan_rf=0.46, plan_rr=0.40, plan_minf=0.64, plan_minr=0.72,
+    cut_z=1.0,
     stations=[0.0, 0.03, 0.08, 0.16, 0.3, 0.5, 0.8, 1.2, 1.6, 1.9, 2.05, 2.2, 2.4, 2.6, 2.8, 3.0, 3.3, 3.55, 3.75, 3.95, 4.1, 4.2, 4.4, 4.6, 4.72, 4.79, 4.83, 4.85],
     ztop=[(0, 0.625), (0.05, 0.69), (0.2, 0.765), (0.6, 0.82), (1.2, 0.86), (1.8, 0.895), (2.05, 0.925), (2.4, 1.15),
           (2.75, 1.37), (3.0, 1.385), (3.55, 1.375), (3.85, 1.25), (4.1, 1.015), (4.2, 0.985), (4.5, 0.985), (4.72, 0.96), (4.85, 0.85)],
@@ -33,6 +34,7 @@ car.add_glass(
     windscreen=[(-0.67, 2.10), (0.67, 2.10), (0.57, 2.72), (-0.57, 2.72)],
     rear_window=[(-0.53, 3.60), (0.53, 3.60), (0.60, 4.10), (-0.60, 4.10)],
 )
+car.cut_windows()
 car.refresh_surface(('body', 'glass'))
 F = car.front_mapper(); Rr = car.rear_mapper(); T = car.top_mapper()
 FD, RD, TD = (0, 1, 0), (0, -1, 0), (0, 0, -1)
@@ -85,6 +87,13 @@ for sx in (1, -1):
              (lambda lx, ly, sx=sx: (2.45 + sx * lx, 0.845 + ly)))
 
 car.lightbar(3.10, 1.20, 0.29)
+I = dict(hw_in=0.79, seat_x=0.40, floor_z=0.20, dash_y0=2.10, dash_y1=2.44, dash_z=0.92, wheel_y=2.58, wheel_z=0.83,
+         seat_y=3.00, seat_z=0.42, back_h=0.52, cage_y=3.40, cage_top=1.22, bench_y=3.66, bench_z=0.42, bench_back_y=3.92,
+         bench_back_h=0.50, console_z=0.52, card_z0=0.42, card_z1=0.97, roof_z=1.34, roof_y0=2.80, roof_y1=3.50, roof_hw=0.52,
+         shelf_y1=4.20, shelf_z=0.93, shelf_hw=0.55)
+car.interior(I)
+car.officer('driver', -0.40, 3.00, 0.42, wheel=(2.58, 0.83))
+car.officer('passenger', 0.40, 3.00, 0.42)
 car.finalize()
 print('tris', car.tri_count())
 path = car.export()

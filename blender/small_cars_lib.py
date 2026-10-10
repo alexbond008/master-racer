@@ -36,15 +36,32 @@ def make_mat(name, hexcol, rough=0.5, metal=0.0, emit=None, strength=0.0):
     return m
 
 
+def make_glass():
+    m = make_mat('Glass', '#0b1218', 0.05, 0.0)
+    b = m.node_tree.nodes['Principled BSDF']
+    b.inputs['Alpha'].default_value = 0.3
+    try:
+        m.surface_render_method = 'BLENDED'
+    except Exception:
+        pass
+    try:
+        m.blend_method = 'BLEND'
+    except Exception:
+        pass
+    return m
+
+
 def standard_materials(paint, rim='#b9bcc0', rim_metal=0.9, rim_rough=0.3, plate='#e9e6d8'):
     return {
         'Paint': make_mat('Paint', paint, 0.25, 0.5),
-        'Glass': make_mat('Glass', '#05080c', 0.05, 0.1),
+        'Glass': make_glass(),
         'Tyre': make_mat('Tyre', '#111111', 0.85, 0.0),
         'Rim': make_mat('Rim', rim, rim_rough, rim_metal),
         'Chrome': make_mat('Chrome', '#d8dade', 0.12, 1.0),
         'Trim': make_mat('Trim', '#141414', 0.6, 0.0),
-        'Interior': make_mat('Interior', '#2b2a28', 0.8, 0.0),
+        'Interior': make_mat('Interior', '#34322f', 0.85, 0.0),
+        'Emit_Dash': make_mat('Emit_Dash', '#ffb84a', 0.4, 0.0, emit='#ffb040', strength=3.0),
+        'Driver': make_mat('Driver', '#1b2230', 0.8, 0.0),
         'HeadLight': make_mat('HeadLight', '#fff4dc', 0.1, 0.0, emit='#fff1d0', strength=4.0),
         'TailLight': make_mat('TailLight', '#d01010', 0.2, 0.0, emit='#ff1010', strength=4.0),
         'Plate': make_mat('Plate', plate, 0.4, 0.0),
@@ -250,7 +267,8 @@ def boolean_cut(bm, cutter_bm):
 class Frame:
     """2D outline axes (ea, eb) in 3D plus clip planes (co, no) that keep the side `no` points to."""
     def __init__(self, ea, eb, clips):
-        self.ea, self.eb, self.clips = Vector(ea), Vector(eb), clips
+        self.ea, self.eb = Vector(ea), Vector(eb)
+        self.clips = [(Vector(c), Vector(n)) for c, n in clips]
 
 
 def side(s, xmin=0.54):           # outline (y, z); keep the +s side beyond |x| > xmin
@@ -706,3 +724,190 @@ def loft_rings(car, obj, matname, rings, caps=(True, True)):
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     car.add_bm(obj, matname, bm)
     bm.free()
+
+
+# ----------------------------------------------------------------- window openings, interior shell, furniture
+def _planes(pts, frame):
+    area = sum(pts[i][0] * pts[(i + 1) % len(pts)][1] - pts[(i + 1) % len(pts)][0] * pts[i][1]
+               for i in range(len(pts)))
+    P = list(pts) if area > 0 else list(reversed(pts))
+    pl = []
+    for i in range(len(P)):
+        p0, p1 = P[i], P[(i + 1) % len(P)]
+        d = (p1[0] - p0[0], p1[1] - p0[1])
+        pl.append((frame.ea * p0[0] + frame.eb * p0[1], frame.ea * (-d[1]) + frame.eb * d[0]))
+    return P, pl
+
+
+def cut_openings(bm, wins, margin=0.3):
+    """Remove the surface inside each convex window prism (exact edges, via bisect)."""
+    for pts, frame in wins:
+        P, pl = _planes(pts, frame)
+        A = [p[0] for p in P]
+        B = [p[1] for p in P]
+        amin, amax, bmin, bmax = min(A), max(A), min(B), max(B)
+
+        def sel(f):
+            c = f.calc_center_median()
+            a, b = c.dot(frame.ea), c.dot(frame.eb)
+            if not (amin - margin <= a <= amax + margin and bmin - margin <= b <= bmax + margin):
+                return False
+            return all(no.dot(c - co) > -margin for co, no in frame.clips)
+
+        for co, no in pl + frame.clips:
+            faces = [f for f in bm.faces if sel(f)]
+            geom = list(faces) + list({e for f in faces for e in f.edges}) + list({v for f in faces for v in f.verts})
+            bmesh.ops.bisect_plane(bm, geom=geom, dist=1e-7, plane_co=co, plane_no=no)
+        allp = pl + frame.clips
+        inside = [f for f in bm.faces if all(no.dot(f.calc_center_median() - co) > 1e-6 for co, no in allp)]
+        bmesh.ops.delete(bm, geom=inside, context='FACES')
+
+
+def shift_keys(keys, deltas):
+    out = {}
+    for k, v in keys.items():
+        if k in deltas:
+            d = deltas[k]
+            out[k] = v + d if isinstance(v, (int, float)) else [(y, val + d) for y, val in v]
+        else:
+            out[k] = v
+    return out
+
+
+def interior_shell(keys, ya, yb, floor, inset, wins, cutter=None):
+    k2 = shift_keys(keys, {'hw': -inset, 'tw': -inset, 'zt': -inset})
+    k2['zb'] = floor
+    k2['bw'] = 0.97
+    bm = loft_body(k2, ya, yb, 0.0, 0.0, step=0.06, k=3)
+    if cutter is not None:
+        bm = boolean_cut(bm, cutter)
+    cut_openings(bm, wins)
+    return bm
+
+
+def torus(car, obj, mat, c, normal, R, r, seg=28, seg2=8):
+    n = Vector(normal).normalized()
+    u = n.cross(Vector((0, 0, 1)))
+    if u.length < 1e-3:
+        u = Vector((1, 0, 0))
+    u.normalize()
+    v = n.cross(u)
+    verts, faces = [], []
+    for i in range(seg):
+        a = 2 * math.pi * i / seg
+        d = math.cos(a) * u + math.sin(a) * v
+        ring = Vector(c) + R * d
+        for j in range(seg2):
+            b = 2 * math.pi * j / seg2
+            verts.append(ring + r * (math.cos(b) * d + math.sin(b) * n))
+    for i in range(seg):
+        for j in range(seg2):
+            a0, a1 = i * seg2, ((i + 1) % seg) * seg2
+            faces.append([a0 + j, a0 + (j + 1) % seg2, a1 + (j + 1) % seg2, a1 + j])
+    car.add(obj, mat, verts, faces)
+
+
+def limb(car, obj, mat, p0, p1, thick, bevel=0.01):
+    p0, p1 = Vector(p0), Vector(p1)
+    d = p1 - p0
+    rot = d.to_track_quat('Y', 'Z').to_matrix().to_4x4()
+    car.box(obj, mat, (p0 + p1) / 2, (thick, d.length, thick), bevel, rot=rot)
+
+
+def disc_y(car, obj, mat, c, r, depth=0.004, seg=16):
+    """round dial facing +Y (towards the driver)."""
+    bm = bmesh.new()
+    m = Matrix.Translation(c) @ Matrix.Rotation(math.pi / 2, 4, 'X')
+    bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=seg, radius1=r, radius2=r, depth=depth, matrix=m)
+    car.add_bm(obj, mat, bm)
+    bm.free()
+
+
+def furnish(car, sp):
+    """Dashboard, binnacle + dials, steering wheel, seats, bench, console, shelf and a low-poly driver.
+    sp keys: dside (+1 LHD / -1 RHD), sx (seat x offset), floor, dash=(y0, depth, top, half_w),
+    wheel=(y, z, R, tilt_rad), seat=(y, h), rear=(y_cushion, y_back, w, back_h) , shelf=(y, z, depth, w)"""
+    O = 'interior'
+    I = 'Interior'
+    ds, sx, fl = sp['dside'], sp['sx'], sp['floor']
+    y0, dd, dtop, dw = sp['dash']
+    # dashboard pad, glovebox side bulk, cowl
+    car.box(O, I, (0, y0 + dd / 2, dtop - 0.07), (dw * 2, dd, 0.14), 0.03)
+    car.box(O, I, (0, y0 + dd * 0.35, dtop - 0.19), (dw * 1.2, dd * 0.7, 0.2), 0.03)
+    car.box(O, I, (-ds * 0.30, y0 + dd + 0.01, dtop - 0.14), (0.34, 0.07, 0.16), 0.02)        # centre stack
+    for k in (-0.20, 0.0, 0.20):
+        pass
+    # instrument binnacle + dials
+    bx = ds * sx
+    bz = dtop + 0.04
+    by = y0 + dd * 0.72
+    car.box(O, I, (bx, by, bz), (0.40, 0.11, 0.11), 0.025)
+    for dx, r in ((-0.10, 0.045), (0.10, 0.045)):
+        disc_y(car, O, 'Emit_Dash', (bx + dx, by + 0.057, bz + 0.004), r)
+    disc_y(car, O, 'Emit_Dash', (bx, by + 0.057, bz - 0.005), 0.022, seg=12)
+    # steering wheel + column
+    wy, wz, WR, tilt = sp['wheel']
+    nrm = (0, math.cos(tilt), math.sin(tilt))
+    torus(car, O, I, (bx, wy, wz), nrm, WR, 0.015)
+    limb(car, O, I, (bx - WR, wy, wz), (bx + WR, wy, wz), 0.02, 0.004)
+    limb(car, O, I, (bx, wy - 0.04 * math.cos(tilt), wz - 0.04 * math.sin(tilt)),
+         (bx, y0 + dd * 0.55, dtop - 0.12), 0.05)
+    # front seats
+    sy, sh = sp['seat']
+    for xx in (-sx, sx):
+        car.box(O, I, (xx, sy, fl + 0.17), (0.46, 0.50, 0.13), 0.035)
+        rot = Matrix.Rotation(math.radians(-14), 4, 'X')
+        car.box(O, I, (xx, sy + 0.25, fl + 0.17 + sh / 2 + 0.03), (0.46, 0.10, sh), 0.035, rot=rot)
+        car.box(O, I, (xx, sy + 0.29, fl + 0.17 + sh + 0.12), (0.22, 0.07, 0.16), 0.03)
+        car.box(O, I, (xx * 1.0 + (-ds * 0 if False else 0), sy + 0.08, fl + 0.07), (0.06, 0.4, 0.14), 0.01)
+    # centre console + handbrake + gear lever
+    car.box(O, I, (0, sy + 0.12, fl + 0.14), (0.17, 0.62, 0.18), 0.03)
+    limb(car, O, I, (0, sy + 0.26, fl + 0.24), (0, sy + 0.38, fl + 0.34), 0.03)
+    limb(car, O, I, (0, sy - 0.02, fl + 0.26), (0, sy - 0.02, fl + 0.40), 0.025)
+    # rear bench
+    yc, yb, rw, rbh = sp['rear']
+    car.box(O, I, (0, yc, fl + 0.17), (rw, 0.46, 0.13), 0.035)
+    car.box(O, I, (0, yb, fl + 0.17 + rbh / 2 + 0.03), (rw, 0.10, rbh), 0.035, rot=Matrix.Rotation(math.radians(-10), 4, 'X'))
+    for xx in (-rw * 0.3, 0.0, rw * 0.3):
+        car.box(O, I, (xx, yb + 0.03, fl + 0.17 + rbh + 0.09), (0.18, 0.06, 0.12), 0.025)
+    # parcel shelf
+    py, pz, pd, pw = sp['shelf']
+    car.box(O, I, (0, py, pz), (pw, pd, 0.02), 0.005)
+    # pedals
+    for k in (-0.08, 0.0, 0.08):
+        car.box(O, I, (bx + k, y0 + dd - 0.02, fl + 0.12), (0.05, 0.03, 0.08), 0.005)
+    # driver (low poly)
+    D = 'Driver'
+    dy = sy + 0.12
+    car.ellipsoid(O, D, (bx, dy + 0.02, fl + 0.17 + 0.36), (0.20, 0.12, 0.27), 12, 8)           # torso
+    car.ellipsoid(O, D, (bx, dy - 0.03, fl + 0.17 + 0.72), (0.095, 0.105, 0.115), 12, 8)       # head
+    limb(car, O, D, (bx, dy, fl + 0.17 + 0.62), (bx, dy - 0.02, fl + 0.17 + 0.64), 0.07)       # neck
+    for k in (-1, 1):
+        sh_ = (bx + k * 0.21, dy, fl + 0.17 + 0.56)
+        wh_ = (bx + k * 0.17, wy + 0.02, wz - 0.02 * k)
+        el_ = ((sh_[0] + wh_[0]) / 2 + k * 0.05, (sh_[1] + wh_[1]) / 2, min(sh_[2], wh_[2]) - 0.06)
+        limb(car, O, D, sh_, el_, 0.075)
+        limb(car, O, D, el_, wh_, 0.065)
+        hp_ = (bx + k * 0.10, dy + 0.02, fl + 0.17 + 0.14)
+        kn_ = (bx + k * 0.12, dy - 0.40, fl + 0.17 + 0.20)
+        ft_ = (bx + k * 0.10, y0 + dd + 0.02, fl + 0.10)
+        limb(car, O, D, hp_, kn_, 0.12)
+        limb(car, O, D, kn_, ft_, 0.09)
+
+
+def flare_lip(car, SF, sx, cy, cz, R0, depth=0.03, a0=14, a1=166, n=22, width=0.046):
+    """Wedge-shaped Paint lip around a wheel opening (Paint, added to the body object)."""
+    rings = []
+    for i in range(n + 1):
+        th = math.radians(a0 + (a1 - a0) * i / n)
+        c, sn = math.cos(th), math.sin(th)
+        pts = []
+        for rho, dx in ((-0.004, -0.012), (-0.004, depth), (width * 0.45, depth * 0.85), (width, 0.0), (width, -0.012)):
+            r = R0 + rho
+            rr = R0 + width
+            xs = SF.surf_x(sx, cy + rr * c, cz + rr * sn)
+            if xs is None:
+                xs = 0.8
+            pts.append(Vector((sx * (xs + dx), cy + r * c, cz + r * sn)))
+        rings.append(pts)
+    loft_rings(car, 'body', 'Paint', rings)

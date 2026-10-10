@@ -56,6 +56,7 @@ car.mirror(1.93, 0.785, 0.95)
 hl = [(0.27, 0.58), (0.43, 0.565), (0.58, 0.585), (0.665, 0.625), (0.67, 0.685), (0.60, 0.73), (0.49, 0.74), (0.37, 0.715)]
 for pts in (hl, mirror_x(hl)):
     car.surround(chaikin(pts, 1), F, FD, 1.14, offset=0.006)
+    car.patch('lights', 'HeadLight', chaikin(pts, 1), F, FD, offset=0.0085, maxlen=0.031)   # under-layer hides pin-holes
     car.patch('lights', 'HeadLight', chaikin(pts, 1), F, FD, offset=0.012, maxlen=0.022)
 car.patch('trim', 'Trim', rrect(-0.24, 0.24, 0.56, 0.685), F, FD, offset=0.008, maxlen=0.05)
 car.patch('chrome', 'Chrome', rect(-0.24, 0.24, 0.62, 0.628), F, FD, offset=0.006, maxlen=0.03)

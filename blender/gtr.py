@@ -22,12 +22,13 @@ ST = [
     (-1.500, 0.895, 0.15, 0.80, 0.865, 3.4, 5.0, 0.94, 0.93),
     (-0.950, 0.890, 0.17, 0.86, 0.925, 3.4, 5.0, 0.93, 0.93),
     (-0.620, 0.885, 0.17, 0.88, 1.075, 4.0, 5.0, 0.86, 0.93),
-    (-0.300, 0.880, 0.17, 0.89, 1.285, 5.0, 5.0, 0.80, 0.93),
-    (-0.050, 0.875, 0.17, 0.90, 1.350, 6.0, 5.0, 0.77, 0.93),
-    (0.700, 0.875, 0.17, 0.90, 1.360, 6.0, 5.0, 0.77, 0.93),
-    (1.000, 0.882, 0.17, 0.92, 1.300, 5.5, 5.0, 0.79, 0.93),
-    (1.400, 0.892, 0.18, 0.96, 1.120, 4.5, 5.0, 0.84, 0.93),
-    (1.700, 0.8955, 0.20, 0.98, 1.055, 3.6, 5.0, 0.88, 0.93),
+    (-0.300, 0.880, 0.17, 0.89, 1.275, 5.0, 5.0, 0.80, 0.93),
+    (-0.050, 0.875, 0.17, 0.90, 1.340, 6.0, 5.0, 0.77, 0.93),
+    (0.450, 0.875, 0.17, 0.90, 1.345, 6.0, 5.0, 0.77, 0.93),
+    (0.750, 0.878, 0.17, 0.91, 1.320, 5.5, 5.0, 0.78, 0.93),
+    (1.050, 0.884, 0.17, 0.93, 1.250, 5.0, 5.0, 0.80, 0.93),
+    (1.350, 0.892, 0.18, 0.96, 1.140, 4.5, 5.0, 0.84, 0.93),
+    (1.650, 0.8955, 0.20, 0.98, 1.070, 3.8, 5.0, 0.88, 0.93),
     (2.100, 0.893, 0.22, 0.985, 1.040, 3.5, 5.0, 0.92, 0.93),
     (2.255, 0.875, 0.25, 0.96, 1.030, 3.5, 4.5, 0.92, 0.93),
     (2.290, 0.80, 0.27, 0.92, 1.000, 3.2, 4.0, 0.92, 0.92),
@@ -52,12 +53,21 @@ def gtr_face(cx, cy, cz, nx, ny, nz):
 
 
 body, at = loft_body('body', ST, 40, 0.05, lambda *a: 'Paint', 'body', extra_ys=(YF, YR))
+surf0 = Surf(body)      # intact skin: glass patches are projected on this, windows are cut out of the body below
+WINS = [
+    ('S', [(-0.62, 0.995), (0.50, 0.995), (0.44, 1.255), (-0.22, 1.255)], 22, 6),
+    ('S', [(0.64, 0.995), (1.26, 1.005), (1.02, 1.135), (0.64, 1.250)], 10, 5),
+    ('F', [(-0.70, 0.985), (0.70, 0.985), (0.60, 1.26), (-0.60, 1.26)], 22, 9),
+    ('R', [(-0.66, 1.075), (0.66, 1.075), (0.57, 1.235), (-0.57, 1.235)], 20, 7),
+]
 
 # --------------------------------------------------------------- wheel arches (boolean)
 cut = Mesh('cutter')
 for sx in (1, -1):
     for y in (YF, YR):
         add_cyl(cut, (sx * 0.42, y, WR), (sx * 1.2, y, WR), ARCH_R, ARCH_R, 40, 'Trim')
+for mode_, cc_, nu_, nv_ in WINS:
+    win_cut(cut, surf0, mode_, cc_)
 cut.fix()
 bo = body.to_obj(M, 'body_tmp')
 co = cut.to_obj(M, 'cutter')
@@ -90,11 +100,12 @@ glass = part('glass')
 spoiler = part('spoiler')
 mirrors = part('mirrors')
 
-# glass
-sym(glass, surf, 'S', quad_grid([(-0.62, 0.995), (0.50, 0.995), (0.44, 1.265), (-0.22, 1.265)], 22, 6), 'Glass', lift=0.005, sdepth=0.02)
-sym(glass, surf, 'S', quad_grid([(0.64, 0.995), (1.22, 1.005), (1.00, 1.17), (0.64, 1.265)], 10, 5), 'Glass', lift=0.005, sdepth=0.02)
-patch(glass, surf, 'F', quad_grid([(-0.70, 0.985), (0.70, 0.985), (0.60, 1.27), (-0.60, 1.27)], 22, 9), 'Glass', lift=0.005, sdepth=0.02)
-patch(glass, surf, 'R', quad_grid([(-0.66, 1.075), (0.66, 1.075), (0.58, 1.285), (-0.58, 1.285)], 20, 7), 'Glass', lift=0.005, sdepth=0.02)
+# glass (semi transparent), projected on the intact skin
+for mode_, cc_, nu_, nv_ in WINS:
+    if mode_ == 'S':
+        sym(glass, surf0, 'S', quad_grid(cc_, nu_, nv_), 'Glass', lift=0.004, sdepth=0.02)
+    else:
+        patch(glass, surf0, mode_, quad_grid(cc_, nu_, nv_), 'Glass', lift=0.004, sdepth=0.02)
 
 # panel lines (door, bonnet, boot)
 door = [(-0.78, 0.97), (-0.80, 0.90), (-0.80, 0.30), (-0.77, 0.27), (0.53, 0.27), (0.56, 0.30), (0.56, 0.96)]
@@ -112,9 +123,9 @@ patch(trim, surf, 'T', ribbon_grid([(-0.78, 1.70), (0.0, 1.69), (0.78, 1.70)], 0
 for sx in (1, -1):
     c = [(sx * 0.37 - 0.03, -1.55), (sx * 0.37 + 0.03, -1.55), (sx * 0.37 + 0.13, -1.12), (sx * 0.37 - 0.13, -1.12)]
     patch(trim, surf, 'T', quad_grid(c, 4, 8), 'Trim', lift=0.004)
-    for k in range(5):
-        y0 = -1.06 + k * 0.045
-        patch(trim, surf, 'T', quad_grid([(sx * 0.58, y0), (sx * 0.78, y0 + 0.02), (sx * 0.78, y0 + 0.035), (sx * 0.58, y0 + 0.015)], 6, 1), 'Trim', lift=0.003, skirt=False)
+    for k in range(3):
+        x0 = 0.52 + k * 0.10
+        patch(trim, surf, 'T', quad_grid([(sx * x0, -1.12), (sx * (x0 + 0.055), -1.12), (sx * (x0 + 0.055), -0.86), (sx * x0, -0.86)], 1, 8), 'Trim', lift=0.003)
 
 # front fascia
 for sx in (1, -1):
@@ -132,16 +143,14 @@ for sx in (1, -1):
     # side marker / indicator
     patch(lights, surf, 'F', quad_grid([(sx * 0.80, 0.585), (sx * 0.86, 0.585), (sx * 0.86, 0.62), (sx * 0.80, 0.62)] if sx > 0 else [(sx * 0.86, 0.585), (sx * 0.80, 0.585), (sx * 0.80, 0.62), (sx * 0.86, 0.62)], 3, 2), 'HeadLight', lift=0.006)
     # round fog / intercooler openings in the lower bumper
-    patch(trim, surf, 'F', ellipse_grid(sx * 0.70, 0.30, 0.125, 0.085, 3, 22), 'Chrome', lift=0.006)
-    patch(trim, surf, 'F', ellipse_grid(sx * 0.70, 0.30, 0.105, 0.068, 3, 22), 'Trim', lift=0.009)
-    patch(lights, surf, 'F', ellipse_grid(sx * 0.70, 0.30, 0.04, 0.04, 2, 14), 'HeadLight', lift=0.011)
-patch(trim, surf, 'F', quad_grid([(-0.50, 0.17), (0.50, 0.17), (0.54, 0.45), (-0.54, 0.45)], 18, 5), 'Trim', lift=0.005)   # wide lower intake
-for k in range(3):
-    zz = 0.24 + k * 0.08
-    patch(trim, surf, 'F', quad_grid([(-0.50, zz), (0.50, zz), (0.50, zz + 0.012), (-0.50, zz + 0.012)], 16, 1), 'Chrome', lift=0.008, skirt=False)
-patch(trim, surf, 'F', quad_grid([(-0.46, 0.545), (0.46, 0.545), (0.46, 0.615), (-0.46, 0.615)], 16, 2), 'Trim', lift=0.004)  # upper grille
-patch(trim, surf, 'F', quad_grid([(-0.26, 0.10), (0.26, 0.10), (0.26, 0.15), (-0.26, 0.15)], 6, 1), 'Plate', lift=0.012) if False else None
-patch(trim, surf, 'F', quad_grid([(-0.26, 0.32), (0.26, 0.32), (0.26, 0.43), (-0.26, 0.43)], 8, 2), 'Plate', lift=0.012)  # front plate
+    patch(trim, surf, 'F', ellipse_grid(sx * 0.72, 0.29, 0.115, 0.078, 1, 26, 0.86), 'Chrome', lift=0.008, skirt=False)
+    patch(trim, surf, 'F', ellipse_grid(sx * 0.72, 0.29, 0.105, 0.068, 3, 24), 'Trim', lift=0.005)
+    patch(lights, surf, 'F', ellipse_grid(sx * 0.72, 0.29, 0.032, 0.032, 2, 14), 'HeadLight', lift=0.008)
+patch(trim, surf, 'F', quad_grid([(-0.50, 0.16), (0.50, 0.16), (0.50, 0.40), (-0.50, 0.40)], 18, 5, 0.25), 'Trim', lift=0.005)   # wide lower intake
+for zz in (0.285, 0.335):
+    patch(trim, surf, 'F', quad_grid([(-0.47, zz), (0.47, zz), (0.47, zz + 0.012), (-0.47, zz + 0.012)], 16, 1), 'Chrome', lift=0.008, skirt=False)
+patch(trim, surf, 'F', quad_grid([(-0.40, 0.555), (0.40, 0.555), (0.40, 0.610), (-0.40, 0.610)], 16, 2), 'Trim', lift=0.004)  # upper grille slot
+patch(trim, surf, 'F', quad_grid([(-0.26, 0.175), (0.26, 0.175), (0.26, 0.275), (-0.26, 0.275)], 8, 2), 'Plate', lift=0.011)  # front plate
 add_box(trim, (0, -2.283, 0.12), (1.28, 0.05, 0.02), 'Trim')            # splitter lip
 
 # rear
@@ -188,6 +197,15 @@ for sx in (1, -1):
     add_prism(spoiler, [(WING_Y - 0.03, 1.02), (WING_Y + 0.03, 1.02), (WING_Y + 0.025, WING_Z - 0.01), (WING_Y - 0.035, WING_Z - 0.01)], 'YZ', sx * 0.40, sx * 0.44, 'Trim')
 add_prism(spoiler, [(WING_Y + 0.18, WING_Z + 0.005), (WING_Y + 0.23, WING_Z - 0.01), (WING_Y + 0.23, WING_Z + 0.07), (WING_Y + 0.18, WING_Z + 0.07)], 'YZ', -0.72, 0.72, 'Paint') if False else None
 spoiler.fix()
+
+# --------------------------------------------------------------- interior (RHD: driver on -X)
+sh = interior_shell(at, -0.80, 1.42, 0.12, 16, 0.05, 0.045)
+P['shell'] = sh
+cab = part('interior')
+cockpit(cab, -1, 0.70, -0.77, -0.40, 0.93, 0.225, 0.30, (-0.17, 0.86), 0.5)
+bucket_seat(cab, -0.30, 1.02, 0.235)
+bucket_seat(cab, 0.30, 1.02, 0.235)
+add_box(cab, (0, 1.30, 0.55), (1.30, 0.10, 0.50), 'Interior')   # parcel shelf / rear seat back
 
 # --------------------------------------------------------------- wheels
 def gtr_spokes(rin, xf):

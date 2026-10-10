@@ -24,7 +24,7 @@ DARK = mat('Dark', hexc('#17191c'), 0.7)
 SHUT = mat('Shutter', hexc('#6a6e73'), 0.6, 0.5)
 WIN = mat('Emit_Window', hexc('#ffc77a'), 0.4, emit=hexc('#ffb050'), strength=4.5)
 SHOP = mat('Emit_Shop', hexc('#ffd9a0'), 0.4, emit=hexc('#ffc27a'), strength=4.0)
-GLASS = mat('Emit_RoofGlass', hexc('#cfe6ff'), 0.3, emit=hexc('#b8d8ff'), strength=2.0)
+GLASS = mat('Emit_RoofGlass', hexc('#cfe6ff'), 0.3, emit=hexc('#b8d8ff'), strength=1.1)
 LAMP = mat('Emit_Lamp', hexc('#ffe9a8'), 0.4, emit=hexc('#ffd878'), strength=8.0)
 COLS = [('Emit_SignPink', '#ff2e7a'), ('Emit_SignYellow', '#ffc400'), ('Emit_SignTeal', '#12c2b6'),
         ('Emit_SignPurple', '#9a4cff'), ('Emit_SignGreen', '#3fd04f'), ('Emit_SignOrange', '#ff6a1f'),
@@ -131,70 +131,186 @@ for i in range(n):
             B.box(0, -0.05, FIRST + 0.5, 1.6, 0.12, 2.0, DARK)
         B.pop()
 
-# ---------------------------------------------------------------- arched gabled entrances
+# ---------------------------------------------------------------- arched gabled entrances (ornate Dutch-style gable fronts)
 LET = ['GRANVILLE ARCADE', 'BRIXTON VILLAGE', 'BRIXTON VILLAGE']
+BOARD = mat('SignBoard', hexc('#1b1230'), 0.6)
+LETC = [SIGNS[0], SIGNS[1], SIGNW, SIGNS[2], SIGNS[3], SIGNS[5]]
+
+
+def gable_pts(hw=4.2, z0=0.0):
+    r = [(hw, z0), (hw, z0 + 1.2), (hw - 0.7, z0 + 1.6), (hw - 1.1, z0 + 2.4), (hw - 1.7, z0 + 2.8), (hw - 2.2, z0 + 3.6),
+         (1.5, z0 + 4.4)]
+    arc = [(math.cos(math.pi * (1 - t / 8)) * 1.5, z0 + 4.4 + math.sin(math.pi * (1 - t / 8)) * 1.5) for t in range(1, 8)]
+    right = r
+    left = [(-x, z) for (x, z) in reversed(r)]
+    return right + arc + left
+
+
 for idx, (ex, ey, nrm, tan, ang) in enumerate(entrance_edges):
     outang = math.atan2(nrm[1], nrm[0]) + math.pi / 2
     B.push(outang, ex + nrm[0] * 0.05, ey + nrm[1] * 0.05)
-    # gable block (cream, rises above parapet) + stepped top
-    B.box(0, 0.5, 0, 8.4, 1.4, H + 2.2, RENDER)
-    B.box(0, 0.35, H + 2.2, 7.0, 1.2, 0.5, CONC)
-    B.box(0, 0.3, H + 2.7, 4.4, 1.0, 0.5, CONC)
-    B.box(0, 0.3, H + 3.2, 1.6, 0.9, 0.4, CONC)
-    # pilasters framing
+    sgn_col = SIGNS[(idx * 2) % len(SIGNS)]
+    B.box(0, 0.5, 0, 8.4, 1.4, H + 1.0, RENDER)
+    B.vprism(gable_pts(4.2, H + 1.0), -0.2, 0.9, RENDER)
+    # coping line following the gable (thin stone rim, slightly proud)
+    gp = gable_pts(4.2, H + 1.0)
+    for a, b in zip(gp[:-1], gp[1:]):
+        dx, dz = b[0] - a[0], b[1] - a[1]
+        Lg = math.hypot(dx, dz)
+        if Lg < 0.05:
+            continue
+        ca, sa = dx / Lg, dz / Lg
+        B.obox(((a[0] + b[0]) / 2, -0.3, (a[1] + b[1]) / 2), (ca, 0, sa), (0, 1, 0), (-sa, 0, ca), Lg + 0.05, 0.3, 0.28, CONC)
+    # pinnacles + finial + scroll volutes
     for sx in (-1, 1):
-        B.box(sx * 4.05, -0.3, 0, 0.9, 0.55, H + 2.8, BRICK)
-        B.box(sx * 3.2, -0.3, 0, 0.5, 0.35, H + 1.0, CONC)
-    # big arched glazed opening, lit
-    B.arch_prism(-2.5, 2.5, -0.3, 0.0, 4.3, 0.1, CONC)
-    B.arch_prism(-2.25, 2.25, -0.4, 0.2, 4.3, 0.1, SHOP)
-    # glazing bars
-    for gx in (-1.1, 0, 1.1):
-        B.box(gx, -0.5, 0.3, 0.06, 0.05, 6.4, DARK)
-    for gz in (2.2, 4.4):
+        B.box(sx * 4.2, -0.2, H + 1.0, 0.7, 0.7, 1.4, CONC)
+        B.sphere(sx * 4.2, -0.2, H + 2.7, 0.35, CONC, 8, 5)
+        ring = [(sx * 3.1 + math.cos(2 * math.pi * k / 16) * 0.65, -0.34, H + 3.0 + math.sin(2 * math.pi * k / 16) * 0.65) for k in range(16)]
+        B.face(ring if sx > 0 else list(reversed(ring)), CONC)
+        ring2 = [(sx * 3.1 + math.cos(2 * math.pi * k / 12) * 0.3, -0.38, H + 3.0 + math.sin(2 * math.pi * k / 12) * 0.3) for k in range(12)]
+        B.face(ring2 if sx > 0 else list(reversed(ring2)), sgn_col)
+    B.sphere(0, -0.2, H + 1.0 + 4.4 + 1.5 + 0.35, 0.4, CONC, 8, 5)
+    # medallion (lit) in the gable head
+    ring = [(math.cos(2 * math.pi * k / 20) * 0.95, -0.36, H + 1.0 + 3.4 + math.sin(2 * math.pi * k / 20) * 0.95) for k in range(20)]
+    B.face(ring, sgn_col)
+    ring = [(math.cos(2 * math.pi * k / 20) * 0.6, -0.4, H + 1.0 + 3.4 + math.sin(2 * math.pi * k / 20) * 0.6) for k in range(20)]
+    B.face(ring, SIGNW)
+    # pilasters framing + capitals
+    for sx in (-1, 1):
+        B.box(sx * 4.05, -0.3, 0, 0.9, 0.6, H + 1.0, BRICK)
+        B.box(sx * 4.05, -0.35, H + 0.8, 1.15, 0.8, 0.35, CONC)
+        B.box(sx * 3.2, -0.3, 0, 0.5, 0.4, H, CONC)
+    # arch with sunburst fanlight
+    B.arch_prism(-2.6, 2.6, -0.3, 0.0, 4.3, 0.1, CONC)
+    B.arch_prism(-2.3, 2.3, -0.4, 0.2, 4.3, 0.1, SHOP)
+    for t in range(1, 8):
+        th = math.pi * t / 8
+        r_mid = 1.25
+        B.obox((math.cos(th) * r_mid, -0.5, 4.3 + math.sin(th) * r_mid), (math.cos(th), 0, math.sin(th)), (0, 1, 0),
+               (-math.sin(th), 0, math.cos(th)), 2.3, 0.05, 0.06, DARK)
+    for gx in (-1.15, 0, 1.15):
+        B.box(gx, -0.5, 0.3, 0.06, 0.05, 4.0, DARK)
+    for gz in (1.4, 2.8):
         B.box(0, -0.5, gz, 4.6, 0.05, 0.06, DARK)
-    # coloured sign board above the arch (two colours) + white letters
-    B.box(0, -0.4, 7.65, 6.4, 0.3, 1.5, SIGNS[(idx * 2) % len(SIGNS)])
-    B.text(LET[idx % 3], 0, -0.62, 8.4, 0.62, SIGNW, extrude=0.08)
-    # side shop signs
+    # hand-lettered sign: dark board, bright border, one emissive colour per letter, slight baseline wobble
+    B.box(0, -0.42, 7.05, 7.6, 0.3, 1.85, BOARD)
+    B.box(0, -0.6, 7.1, 7.4, 0.04, 0.1, SIGNW)
+    B.box(0, -0.6, 8.8, 7.4, 0.04, 0.1, SIGNW)
+    txt = LET[idx % 3]
+    pitch = 7.0 / len(txt)
+    for ci, chx in enumerate(txt):
+        if chx == ' ':
+            continue
+        B.text(chx, -3.5 + pitch * (ci + 0.5), -0.62, 7.95 + (0.08 if ci % 2 else -0.05), pitch / 0.82, LETC[(ci + idx) % len(LETC)], extrude=0.1)
+    # small shop signs flanking
     for sx in (-1, 1):
-        B.box(sx * 3.4, -0.5, 5.0, 0.8, 0.3, 2.8, SIGNS[(idx + 2 + sx) % len(SIGNS)])
+        B.box(sx * 3.4, -0.5, 5.0, 0.8, 0.3, 2.4, SIGNS[(idx + 2 + sx) % len(SIGNS)])
     # hanging lanterns / bunting
     for lx in (-2.2, 0, 2.2):
         B.box(lx, -1.4, 4.9, 0.03, 0.03, 0.9, DARK)
         B.sphere(lx, -1.4, 4.75, 0.2, LAMP, 8, 5)
-    for k in range(10):
-        t = k / 9
-        x = -3.5 + 7.0 * t
-        z = 6.2 - 0.45 * math.sin(math.pi * t)
+    for k in range(12):
+        t = k / 11
+        x = -3.9 + 7.8 * t
+        z = 6.4 - 0.5 * math.sin(math.pi * t)
         col = SIGNS[(k + idx) % len(SIGNS)]
         B.face([(x - 0.18, -1.0, z), (x + 0.18, -1.0, z), (x, -1.0, z - 0.4)], col)
         B.face([(x + 0.18, -1.0, z), (x - 0.18, -1.0, z), (x, -1.0, z - 0.4)], col)
     B.pop()
 
-# ---------------------------------------------------------------- roof: glazed ridge lanterns (the 'ceiling windows')
-LAN = 0
-step_x, step_y = 9.0, 7.5
-y = -17.0
-while y < 41:
-    x = -45.0
-    while x < 58:
-        if pip(x, y, pl) and dist_edge(x, y, pl) > 3.0:
-            for sx in (-1, 1):
-                pass
-            B.box(x, y, H + 0.25, 7.0, 3.0, 0.7, CONC)
-            # gabled glass: two slopes
-            lo, hi = H + 0.95, H + 1.95
-            B.face([(x - 3.3, y - 1.3, lo), (x + 3.3, y - 1.3, lo), (x + 3.3, y, hi), (x - 3.3, y, hi)], GLASS)
-            B.face([(x - 3.3, y + 1.3, lo), (x - 3.3, y, hi), (x + 3.3, y, hi), (x + 3.3, y + 1.3, lo)], GLASS)
-            B.face([(x - 3.3, y - 1.3, lo), (x - 3.3, y, hi), (x - 3.3, y + 1.3, lo)], GLASS)
-            B.face([(x + 3.3, y + 1.3, lo), (x + 3.3, y, hi), (x + 3.3, y - 1.3, lo)], GLASS)
-            B.box(x, y, H + 1.95, 6.8, 0.1, 0.12, STEEL)
-            LAN += 1
-        x += step_x
-    y += step_y
-    if int(y) % 2:
-        pass
+# ---------------------------------------------------------------- market stalls with striped canopies along the front
+STR = [(mat('StripeRed', hexc('#d4352f'), 0.8), mat('StripeWhite', hexc('#ece6d6'), 0.8)),
+       (mat('StripeGreen', hexc('#2e9c4a'), 0.8), mat('StripeWhite', hexc('#ece6d6'), 0.8)),
+       (mat('StripeYellow', hexc('#f0b81c'), 0.8), mat('StripeBlue', hexc('#2b5fd0'), 0.8)),
+       (mat('StripeOrange', hexc('#ec6a1c'), 0.8), mat('StripeWhite', hexc('#ece6d6'), 0.8))]
+WOOD = mat('Wood', hexc('#6a4a30'), 0.85)
+GOODS = [mat('GoodsRed', hexc('#c9302a'), 0.8), mat('GoodsYel', hexc('#e8c020'), 0.8), mat('GoodsGrn', hexc('#3a9a40'), 0.8),
+         mat('GoodsOrg', hexc('#e8761e'), 0.8), mat('GoodsPur', hexc('#7a3a8a'), 0.8)]
+nst = 0
+for i in range(n):
+    a, b = pl[i], pl[(i + 1) % n]
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    L = math.hypot(dx, dy)
+    if L < 10:
+        continue
+    tan = (dx / L, dy / L)
+    nrm = (dy / L, -dx / L)
+    if nrm[1] > -0.9:
+        continue
+    mx, my = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+    ent_u = (0.0 if L < 30 else -L * 0.18)
+    k = int((L - 3) / 3.9)
+    for j in range(k):
+        u = -L / 2 + 1.8 + 3.9 * j + (L - 3 - 3.9 * k) / 2
+        if abs(u - ent_u) < 5.4:
+            continue
+        c1, c2 = STR[(j + i) % len(STR)]
+        outang = math.atan2(nrm[1], nrm[0]) + math.pi / 2
+        B.push(outang, mx + tan[0] * u + nrm[0] * 2.0, my + tan[1] * u + nrm[1] * 2.0)
+        # table + goods + poles + striped sloping canopy (front low, back high) + scalloped valance
+        B.box(0, -0.2, 0.0, 3.4, 1.3, 0.85, WOOD)
+        for g in range(8):
+            B.box(-1.4 + g * 0.4, -0.25 + (g % 2) * 0.25, 0.85, 0.32, 0.32, 0.22, GOODS[(g + j) % len(GOODS)])
+        for (px, py) in ((-1.7, -0.9), (1.7, -0.9), (-1.7, 0.9), (1.7, 0.9)):
+            B.box(px, py, 0.0, 0.06, 0.06, 2.4 if py < 0 else 2.8, WOOD)
+        NS = 8
+        for sidx in range(NS):
+            xa, xb = -1.9 + 3.8 * sidx / NS, -1.9 + 3.8 * (sidx + 1) / NS
+            m = c1 if sidx % 2 == 0 else c2
+            B.face([(xa, -1.2, 2.35), (xb, -1.2, 2.35), (xb, 1.1, 2.85), (xa, 1.1, 2.85)], m)
+            B.face([(xa, 1.1, 2.85), (xb, 1.1, 2.85), (xb, -1.2, 2.35), (xa, -1.2, 2.35)], m)
+            B.face([(xa, -1.2, 2.35), (xb, -1.2, 2.35), (xb, -1.22, 2.05), (xa, -1.22, 2.05)], m)
+        B.sphere(0, -0.8, 2.15, 0.12, LAMP, 6, 4)
+        B.pop()
+        nst += 1
+print('STALLS', nst)
+
+# ---------------------------------------------------------------- roof: dark metal sawtooth with glowing skylight risers
+ROOFM = mat('RoofMetal', hexc('#2b2f35'), 0.55, 0.6)
+SW = 6.5
+RZ_LO, RZ_HI = H + 0.3, H + 2.4
+y0 = -21.0
+nrow = 0
+while y0 < 42:
+    x = -50.0
+    runs = []
+    cur = None
+    while x < 60:
+        ok = pip(x, y0 + 0.4, pl) and pip(x, y0 + SW - 0.4, pl) and dist_edge(x, y0 + 0.4, pl) > 1.2 and dist_edge(x, y0 + SW - 0.4, pl) > 1.2
+        if ok:
+            if cur is None:
+                cur = [x, x]
+            cur[1] = x
+        else:
+            if cur is not None:
+                runs.append(cur)
+                cur = None
+        x += 0.5
+    if cur is not None:
+        runs.append(cur)
+    for (xa, xb) in runs:
+        if xb - xa < 3.0:
+            continue
+        y1 = y0 + SW
+        B.face([(xa, y0, RZ_HI), (xb, y0, RZ_HI), (xb, y1, RZ_LO), (xa, y1, RZ_LO)], ROOFM)
+        B.face([(xa, y0, RZ_LO), (xb, y0, RZ_LO), (xb, y0, RZ_HI), (xa, y0, RZ_HI)], GLASS)  # glowing riser faces -Y
+        # gable ends
+        B.face([(xa, y0, RZ_LO), (xa, y0, RZ_HI), (xa, y1, RZ_LO)], ROOFM)
+        B.face([(xb, y1, RZ_LO), (xb, y0, RZ_HI), (xb, y0, RZ_LO)], ROOFM)
+        # riser mullions + top flashing + gutter
+        mm = int((xb - xa) / 1.6)
+        for q in range(mm + 1):
+            B.box(xa + (xb - xa) * q / max(mm, 1), y0 - 0.02, RZ_LO, 0.08, 0.06, RZ_HI - RZ_LO, DARK)
+        B.box((xa + xb) / 2, y0 - 0.03, RZ_HI, xb - xa, 0.16, 0.12, STEEL)
+        B.box((xa + xb) / 2, y1, RZ_LO - 0.05, xb - xa, 0.2, 0.2, STEEL)
+        # standing seams
+        for q in range(int((xb - xa) / 2.4) + 1):
+            xs = xa + 1.2 + q * 2.4
+            if xs < xb - 0.3:
+                B.face([(xs, y0 + 0.02, RZ_HI + 0.02), (xs + 0.07, y0 + 0.02, RZ_HI + 0.02), (xs + 0.07, y1 - 0.02, RZ_LO + 0.02), (xs, y1 - 0.02, RZ_LO + 0.02)], DARK)
+    y0 += SW
+    nrow += 1
+# perimeter flat roof strips remain as dark slab (see POLY prism)
 # plant/flues
 random.seed(3)
 for k in range(10):

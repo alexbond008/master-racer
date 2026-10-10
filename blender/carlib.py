@@ -36,12 +36,20 @@ def _mk(name, hexcol, rough, metal, emit=None, es=0.0):
 def make_materials(paint, rim='#bfc3cb', rim_rough=0.3, rim_metal=0.9):
     M = {}
     M['Paint'] = _mk('Paint', paint, 0.25, 0.5)
-    M['Glass'] = _mk('Glass', '#06090e', 0.05, 0.3)
+    M['Glass'] = _mk('Glass', '#0a1016', 0.05, 0.3)
+    M['Glass'].node_tree.nodes['Principled BSDF'].inputs['Alpha'].default_value = 0.3
+    for attr, val in (('blend_method', 'BLEND'), ('surface_render_method', 'BLENDED')):
+        try:
+            setattr(M['Glass'], attr, val)
+        except Exception:
+            pass
     M['Tyre'] = _mk('Tyre', '#141414', 0.85, 0.0)
     M['Rim'] = _mk('Rim', rim, rim_rough, rim_metal)
     M['Chrome'] = _mk('Chrome', '#d9dde3', 0.12, 1.0)
     M['Trim'] = _mk('Trim', '#0d0d0f', 0.55, 0.0)
-    M['Interior'] = _mk('Interior', '#1b1b1d', 0.8, 0.0)
+    M['Interior'] = _mk('Interior', '#4b4d58', 0.75, 0.0)
+    M['Emit_Dash'] = _mk('Emit_Dash', '#6dff9a', 0.3, 0.0, '#52ff8a', 3.0)
+    M['Driver'] = _mk('Driver', '#7a4f3c', 0.8, 0.0)
     M['HeadLight'] = _mk('HeadLight', '#fff1d0', 0.1, 0.0, '#fff1d0', 4.0)
     M['TailLight'] = _mk('TailLight', '#ff1a10', 0.2, 0.0, '#ff1208', 3.0)
     M['Plate'] = _mk('Plate', '#ece6c4', 0.5, 0.0)
@@ -57,7 +65,7 @@ def make_materials(paint, rim='#bfc3cb', rim_rough=0.3, rim_metal=0.9):
 
 
 MATGROUP = {'Glass': 'glass', 'GlassClear': 'glass', 'Trim': 'trim', 'Chrome': 'trim', 'Plate': 'trim',
-            'HeadLight': 'lights', 'TailLight': 'lights', 'Interior': 'interior',
+            'HeadLight': 'lights', 'TailLight': 'lights', 'Interior': 'interior', 'Emit_Dash': 'interior', 'Driver': 'driver',
             'Tyre': 'trim', 'Rim': 'trim'}
 
 # ---------------------------------------------------------------- mesh wrapper
@@ -577,6 +585,167 @@ def build_wheel(name, side, R, W, rim_r, style, nseg=28):
     return m
 
 
+
+# ---------------------------------------------------------------- window cut-outs (boolean prisms matching glass patches)
+def win_cut(cut, surf, mode, corners, nu=8, nv=5):
+    """Add prism cutter(s) to the Mesh `cut` that remove the skin under a glass patch.
+    mode S also makes the mirrored L cutter."""
+    g = quad_grid(corners, nu, nv)
+    hits = []
+    for row in g:
+        for a, b in row:
+            o, d = MODES[mode](a, b)
+            h = surf.hit(o, d)
+            if h:
+                hits.append(h[0])
+    ax = {'S': 0, 'L': 0, 'F': 1, 'R': 1, 'T': 2}[mode]
+    lo = min(v[ax] for v in hits)
+    hi = max(v[ax] for v in hits)
+    if mode == 'S':
+        t0, t1 = lo - 0.04, hi + 0.15
+    elif mode == 'F':
+        t0, t1 = lo - 0.12, hi + 0.05
+    elif mode == 'R':
+        t0, t1 = lo - 0.05, hi + 0.12
+    else:
+        t0, t1 = lo - 0.04, hi + 0.12
+    def P(a, b, t, sign=1):
+        if mode in ('S', 'L'):
+            return (sign * t, a, b)
+        if mode in ('F', 'R'):
+            return (a, t, b)
+        return (a, b, t)
+    for sign in ((1, -1) if mode == 'S' else (1,)):
+        c = corners
+        pts = [P(p[0], p[1], t0, sign) for p in c] + [P(p[0], p[1], t1, sign) for p in c]
+        add_hex(cut, pts, 'Trim')
+
+
+# ---------------------------------------------------------------- interior
+def interior_shell(at, y0, y1, step=0.12, nseg=16, dx=0.05, dz=0.045):
+    """Inward-facing cabin lining (roof lining, door cards, floor, bulkheads) following the body profile."""
+    m = Mesh('interior_shell', 'interior')
+    ys = [y0 + i * step for i in range(int((y1 - y0) / step) + 1)]
+    if ys[-1] < y1 - 1e-6:
+        ys.append(y1)
+    rings = []
+    for y in ys:
+        p = dict(at(y))
+        p['hw'] = max(p['hw'] - dx, 0.2)
+        p['zb'] = p['zb'] + dz
+        p['zt'] = p['zt'] - dz
+        rings.append([m.vert(q) for q in ring_pts(p, y, nseg)])
+    for i in range(len(rings) - 1):
+        for j in range(nseg):
+            k = (j + 1) % nseg
+            m.face([rings[i][j], rings[i][k], rings[i + 1][k], rings[i + 1][j]], 'Interior')
+    m.face(rings[0][::-1], 'Interior')
+    m.face(rings[-1], 'Interior')
+    m.fix()
+    bmesh.ops.reverse_faces(m.bm, faces=m.bm.faces[:])
+    return m
+
+
+def torus(m, c, u, v, R, r, nmaj=20, nmin=6, mat='Interior'):
+    c = Vector(c)
+    u, v = Vector(u).normalized(), Vector(v).normalized()
+    n = u.cross(v).normalized()
+    rings = []
+    for i in range(nmaj):
+        a = 2 * math.pi * i / nmaj
+        rad = u * math.cos(a) + v * math.sin(a)
+        cc = c + rad * R
+        rings.append([m.vert(cc + (rad * math.cos(2 * math.pi * j / nmin) + n * math.sin(2 * math.pi * j / nmin)) * r) for j in range(nmin)])
+    for i in range(nmaj):
+        a, b = rings[i], rings[(i + 1) % nmaj]
+        for j in range(nmin):
+            k = (j + 1) % nmin
+            m.face([a[j], a[k], b[k], b[j]], mat)
+
+
+def blob(m, c, rx, ry, rz, mat, nlat=4, nlon=8):
+    c = Vector(c)
+    top = m.vert(c + Vector((0, 0, rz)))
+    bot = m.vert(c + Vector((0, 0, -rz)))
+    rings = []
+    for i in range(1, nlat):
+        th = math.pi * i / nlat
+        rings.append([m.vert(c + Vector((rx * math.sin(th) * math.cos(2 * math.pi * j / nlon),
+                                         ry * math.sin(th) * math.sin(2 * math.pi * j / nlon), rz * math.cos(th))))
+                      for j in range(nlon)])
+    for j in range(nlon):
+        k = (j + 1) % nlon
+        m.face([top, rings[0][k], rings[0][j]], mat)
+        m.face([bot, rings[-1][j], rings[-1][k]], mat)
+    for i in range(len(rings) - 1):
+        for j in range(nlon):
+            k = (j + 1) % nlon
+            m.face([rings[i][j], rings[i][k], rings[i + 1][k], rings[i + 1][j]], mat)
+
+
+def bucket_seat(m, cx, cy, zf, bare=False, w=0.46):
+    """Bucket seat facing -Y. cy = cushion centre, zf = floor height under it."""
+    tilt = rotx(-0.22)
+    add_box(m, (cx, cy, zf + 0.09), (w, 0.50, 0.14), 'Interior')
+    add_box(m, (cx, cy + 0.27, zf + 0.40), (w, 0.10, 0.52), 'Interior', tilt)
+    add_box(m, (cx, cy + 0.325, zf + 0.76), (0.27, 0.09, 0.17), 'Interior', tilt)
+    for s in (1, -1):
+        add_box(m, (cx + s * (w / 2 - 0.02), cy + 0.22, zf + 0.34), (0.07, 0.17, 0.40), 'Interior', tilt)
+        add_box(m, (cx + s * (w / 2 - 0.02), cy - 0.08, zf + 0.15), (0.07, 0.30, 0.10), 'Interior')
+
+
+def driver(m, cx, cy, zf, wx, wy, wz):
+    """Low-poly driver sitting in a seat (cx,cy,zf as bucket_seat), hands on the wheel at (wx,wy,wz)."""
+    hip = Vector((cx, cy + 0.10, zf + 0.22))
+    sh = Vector((cx, cy + 0.26, zf + 0.66))
+    add_box(m, (cx, cy + 0.20, zf + 0.46), (0.36, 0.20, 0.42), 'Driver', rotx(-0.18))
+    blob(m, (cx, cy + 0.21, zf + 0.82), 0.095, 0.105, 0.12, 'Driver', 4, 8)
+    for s in (1, -1):
+        add_cyl(m, (cx + s * 0.20, sh.y - 0.04, sh.z - 0.06), (wx + s * 0.17, wy, wz), 0.034, 0.03, 6, 'Driver')
+        add_cyl(m, (cx + s * 0.10, hip.y, hip.z), (cx + s * 0.11, cy - 0.40, zf + 0.20), 0.06, 0.05, 6, 'Driver')
+
+
+def cockpit(m, ds, hwc, y_dash0, y_dash1, z_dash, zf, seat_y, wheel_c, wheel_tilt=0.45, bare=False, tunnel_len=0.95, rear=None, dash_mat='Trim'):
+    """Dashboard, binnacle w/ dials, steering wheel, seats, tunnel + lever. ds = driver side (+1 = +X)."""
+    xd = ds * 0.37
+    # dashboard slab and cowl
+    add_box(m, (0, (y_dash0 + y_dash1) / 2, z_dash - 0.07), (hwc * 1.9, y_dash1 - y_dash0, 0.14), dash_mat)
+    add_box(m, (0, y_dash1 + 0.02, z_dash - 0.20), (hwc * 1.7, 0.06, 0.30), dash_mat)           # dash fascia down to the floor
+    # binnacle + dials
+    by = y_dash1 - 0.06
+    add_box(m, (xd, by, z_dash + 0.04), (0.44, 0.15, 0.10), 'Trim')
+    for i, dxx in enumerate((-0.12, 0.0, 0.12)):
+        rr = 0.045 if i == 1 else 0.038
+        add_cyl(m, (xd + dxx, by + 0.074, z_dash + 0.045), (xd + dxx, by + 0.080, z_dash + 0.045), rr, rr, 10, 'Emit_Dash')
+    # centre stack
+    add_box(m, (-ds * 0.10, y_dash1 - 0.02, z_dash - 0.14), (0.26, 0.10, 0.24), 'Trim')
+    add_box(m, (-ds * 0.10, y_dash1 + 0.035, z_dash - 0.10), (0.20, 0.012, 0.07), 'Emit_Dash')
+    # steering column + wheel
+    wx, wy, wz = xd, wheel_c[0], wheel_c[1]
+    n = Vector((0, math.cos(wheel_tilt), math.sin(wheel_tilt)))     # wheel axis pointing at the driver (+y, a bit up)
+    u = Vector((1, 0, 0))
+    v = n.cross(u)
+    torus(m, (wx, wy, wz), u, v, 0.175, 0.014, 20, 6, 'Interior')
+    add_cyl(m, (wx, wy, wz), (wx, wy - 0.25 * n.y, wz - 0.25 * n.z), 0.03, 0.03, 8, 'Interior')
+    for a in (math.pi * 0.5 + 0.0, math.pi * 0.5 + 2.1, math.pi * 0.5 + 4.18):
+        pe = Vector((wx, wy, wz)) + (u * math.cos(a) + v * math.sin(a)) * 0.175
+        add_cyl(m, (wx, wy, wz), pe, 0.012, 0.012, 5, 'Interior')
+    add_cyl(m, (wx, wy, wz), Vector((wx, wy, wz)) + n * 0.04, 0.05, 0.05, 8, 'Interior')
+    # seats, tunnel, lever
+    bucket_seat(m, xd, seat_y, zf)
+    bucket_seat(m, -xd, seat_y, zf)
+    add_box(m, (0, seat_y - 0.05, zf + 0.12), (0.20, tunnel_len, 0.24), 'Interior')
+    add_cyl(m, (0, seat_y - 0.30, zf + 0.24), (0, seat_y - 0.28, zf + 0.42), 0.012, 0.012, 6, 'Chrome')
+    add_cyl(m, (0, seat_y - 0.28, zf + 0.42), (0, seat_y - 0.28, zf + 0.47), 0.024, 0.024, 8, 'Chrome')
+    # pedals
+    for i in range(3):
+        add_box(m, (xd - 0.07 + i * 0.07, y_dash1 + 0.14, zf + 0.20), (0.05, 0.02, 0.07), 'Interior', rotx(0.5))
+    # door armrests
+    for s in (1, -1):
+        add_box(m, (s * (hwc - 0.03), seat_y - 0.05, z_dash - 0.17), (0.07, 0.5, 0.06), 'Interior')
+    driver(m, xd, seat_y, zf, wx, wy, wz)
+
+
 # ---------------------------------------------------------------- finalize / export / verify
 def finalize(parts, smooth_deg=38):
     dests = {}
@@ -706,6 +875,9 @@ def verify_and_render(car_id, glb, focus=None, cam_dist=1.0):
             nm, vals = spec.split(':')
             v = [float(t) for t in vals.split(',')]
             views[nm] = ('custom', v)
+    views['topin'] = ('hide', (0.001, -0.001, 3.6 + 0.0 * D, 0.0))
+    views['lowin'] = ('custom', [size.x * 1.15, -size.y * 0.55, 0.9, 0.0, 0.1, 0.55, 40])
+    views['frontin'] = ('custom', [-size.x * 0.9, -size.y * 0.45, 1.25, 0.2, 0.15, 0.55, 35])
     only = os.environ.get('VIEWS')
     for nm, vv in views.items():
         if only and nm not in only.split(','):
@@ -714,7 +886,15 @@ def verify_and_render(car_id, glb, focus=None, cam_dist=1.0):
         cd.lens = 55 if nm not in ('top',) else 45
         co = bpy.data.objects.new('cam', cd)
         sc.collection.objects.link(co)
-        if vv[0] == 'custom':
+        hide = vv[0] == 'hide'
+        for o_ in sc.objects:
+            if o_.type == 'MESH' and (o_.name.split('.')[0] in ('body', 'glass', 'spoiler', 'mirrors')):
+                o_.hide_render = hide
+        if hide:
+            co.location = (c.x + 0.001, c.y - 0.6, 3.4)
+            cd.lens = 38
+            tgt = Vector((c.x, c.y, 0.5))
+        elif vv[0] == 'custom':
             v = vv[1]
             co.location = (v[0], v[1], v[2])
             tgt = Vector((v[3], v[4], v[5]))

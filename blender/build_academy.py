@@ -85,6 +85,10 @@ def wall_details(poly, z0, z1, spacing, pil_w=0.9, pil_out=0.35, win_rows=(), pi
             cx = a[0] + tan[0] * u + nrm[0] * pil_out / 2
             cy = a[1] + tan[1] * u + nrm[1] * pil_out / 2
             B.box(cx, cy, z0, pil_w, pil_out, z1 - z0 + parapet, pil_mat, rot=ang)
+            if pil_out > 0.8:  # stepped buttress: weathered set-offs
+                for (frac, dw, dout) in ((0.45, 0.35, 0.3), (0.75, 0.3, 0.25)):
+                    B.box(cx + nrm[0] * dout / 2, cy + nrm[1] * dout / 2, z0 + (z1 - z0) * frac, pil_w + dw, pil_out + dout, 0.35, CONC, rot=ang)
+                B.box(cx + nrm[0] * 0.2, cy + nrm[1] * 0.2, z1 + parapet - 0.3, pil_w + 0.3, pil_out + 0.4, 0.3, CONC, rot=ang)
         # windows between pilasters
         for j in range(k):
             u = (j + 0.5) * step
@@ -114,9 +118,9 @@ B.prism(FLY, 0, FLY_H, BRICK, bottom=False)
 # roofs: dark slab + raised parapet frames
 B.prism([(p[0], p[1]) for p in AUD], AUD_H, AUD_H + 0.15, ROOF)
 B.prism([(p[0], p[1]) for p in FLY], FLY_H, FLY_H + 0.15, ROOF)
-wall_details(AUD, 0.0, AUD_H, 6.5, win_rows=[(6.0, 9.6, 2.0), (12.5, 16.0, 2.0)], parapet=0.9)
+wall_details(AUD, 0.0, AUD_H, 6.5, win_rows=[(6.0, 9.6, 2.0), (12.5, 16.0, 2.0)], parapet=0.9, pil_w=1.6, pil_out=1.0)
 wall_details(FLY, 0.0, FLY_H, 7.0, win_rows=[(9.0, 12.0, 1.8), (20.0, 23.5, 1.8), (28.5, 31.0, 1.8)],
-             parapet=1.1, pil_w=1.1, pil_out=0.45)
+             parapet=1.1, pil_w=1.9, pil_out=1.3)
 # fly-tower roof structure: stage loading lantern + steel tank + aircraft lights
 ft = FLY
 cx = sum(p[0] for p in ft) / 4
@@ -149,6 +153,135 @@ for i in range(len(AUDc)):
         ang = math.atan2(tan[1], tan[0])
         B.box(x, y, 0, 2.4, 0.3, 2.6, DARK, rot=ang)
         B.box(x + nrm[0] * 0.2, y + nrm[1] * 0.2, 2.9, 0.8, 0.12, 0.3, EXIT, rot=ang)
+
+
+# ---- rear / flank dressing: fire escapes, loading bays, louvres, ladders
+STEELD = mat('SteelDark', hexc('#2a2d33'), 0.5, 0.7)
+SHUT = mat('Shutter', hexc('#5e6368'), 0.55, 0.55)
+LOUV = mat('Louvre', hexc('#4d535a'), 0.5, 0.6)
+YEL = mat('Bollard', hexc('#e5c200'), 0.7)
+LAMPW = mat('Emit_Lamp', hexc('#fff0c8'), 0.4, emit=hexc('#ffe9b0'), strength=7.0)
+
+
+def efr(poly, i, u):
+    """edge i of a CCW poly at distance u from its start: returns (x, y, outang, nrm, L)"""
+    a, b = poly[i], poly[(i + 1) % len(poly)]
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    L = math.hypot(dx, dy)
+    t = (dx / L, dy / L)
+    nrm = (dy / L, -dx / L)
+    return a[0] + t[0] * u, a[1] + t[1] * u, math.atan2(nrm[1], nrm[0]) + math.pi / 2, nrm, L
+
+
+def fire_escape(poly, i, u, zs, w=4.2):
+    x, y, oa, nrm, L = efr(poly, i, u)
+    B.push(oa, x + nrm[0] * 0.15, y + nrm[1] * 0.15)
+    for zi, z in enumerate(zs):
+        B.box(0, -0.7, z, w, 1.3, 0.1, STEELD)
+        B.box(0, -1.32, z + 0.05, w, 0.05, 0.05, STEELD)
+        for k in range(8):
+            B.box(-w / 2 + w * k / 7, -1.32, z + 0.1, 0.04, 0.04, 1.0, STEELD)
+        B.box(0, -1.32, z + 1.1, w, 0.05, 0.05, STEELD)
+        for sx in (-1, 1):
+            B.box(sx * w / 2, -0.7, z + 1.1, 0.05, 1.3, 0.05, STEELD)
+        B.box(0, -0.7, z - 0.4, w + 0.1, 0.1, 0.4, STEELD)   # support brace
+        # lit exit sign above the door at each landing
+        B.box(0, -0.06, z + 2.35, 0.9, 0.1, 0.3, EXIT)
+        B.box(0, -0.05, z, 1.1, 0.1, 2.1, DARK)             # escape door
+        if zi < len(zs) - 1:
+            z2 = zs[zi + 1]
+            # zig-zag stair flight between landings
+            side = 1 if zi % 2 == 0 else -1
+            n_ = 14
+            for k in range(n_):
+                t = k / (n_ - 1)
+                B.box(side * (-w / 2 + 0.5 + (w - 1.0) * t) * -1, -1.0, z + 0.1 + (z2 - z) * t, 0.3, 0.9, 0.06, STEELD)
+            for sy in (-0.55, -1.45):
+                B.obox((0, sy, (z + z2) / 2 + 0.55), (1, 0, 0), (0, 1, 0), (0, 0, 1), 0.02, 0.02, 0.02, STEELD)
+    # bottom drop ladder
+    B.box(w / 2 - 0.5, -0.9, 0.0, 0.05, 0.05, zs[0], STEELD)
+    B.box(w / 2 - 0.1, -0.9, 0.0, 0.05, 0.05, zs[0], STEELD)
+    for k in range(int(zs[0] / 0.35)):
+        B.box(w / 2 - 0.3, -0.9, 0.3 + k * 0.35, 0.4, 0.04, 0.04, STEELD)
+    B.pop()
+
+
+def loading_bay(poly, i, u):
+    x, y, oa, nrm, L = efr(poly, i, u)
+    B.push(oa, x + nrm[0] * 0.15, y + nrm[1] * 0.15)
+    B.box(0, -1.0, 0.0, 5.2, 2.0, 1.15, CONC)              # dock platform
+    B.box(0, -1.9, 0.0, 5.4, 0.2, 1.2, YEL)                # bumper strip
+    B.box(0, 0.0, 1.15, 3.6, 0.1, 3.6, SHUT)               # roller door
+    for k in range(16):
+        B.box(0, -0.06, 1.2 + k * 0.22, 3.5, 0.04, 0.05, DARK)
+    B.box(0, -0.06, 4.8, 4.2, 0.3, 0.25, STONE if False else CONC)   # lintel
+    B.box(0, -1.2, 5.3, 5.8, 2.6, 0.18, STEELD)            # canopy
+    B.box(0, -1.3, 5.2, 5.0, 2.2, 0.04, LAMPW)             # lit underside
+    B.box(2.6, -0.05, 4.2, 0.4, 0.2, 0.2, LAMPW)
+    for bx in (-2.9, 2.9):
+        B.box(bx, -2.6, 0.0, 0.2, 0.2, 1.0, YEL)
+    B.pop()
+
+
+def louvre_bank(poly, i, u, z, w=5.5, h=4.2):
+    x, y, oa, nrm, L = efr(poly, i, u)
+    B.push(oa, x + nrm[0] * 0.1, y + nrm[1] * 0.1)
+    B.box(0, 0.05, z, w + 0.4, 0.2, h + 0.4, CONC)
+    B.box(0, -0.05, z + 0.2, w, 0.12, h, DARK)
+    for k in range(int(h / 0.3)):
+        B.box(0, -0.2, z + 0.25 + k * 0.3, w - 0.1, 0.2, 0.06, LOUV)
+    B.pop()
+
+
+def vladder(poly, i, u, z0, z1):
+    x, y, oa, nrm, L = efr(poly, i, u)
+    B.push(oa, x + nrm[0] * 0.1, y + nrm[1] * 0.1)
+    for sx in (-0.3, 0.3):
+        B.box(sx, -0.45, z0, 0.05, 0.05, z1 - z0, STEELD)
+    for k in range(int((z1 - z0) / 0.35)):
+        B.box(0, -0.45, z0 + 0.3 + k * 0.35, 0.6, 0.04, 0.04, STEELD)
+    for zc in [z0 + 2.4 + 1.1 * k for k in range(int((z1 - z0 - 2.4) / 1.1))]:   # safety hoops
+        B.box(0, -0.8, zc, 0.8, 0.04, 0.04, STEELD)
+    B.pop()
+
+
+AUDc2 = ccw(AUD)
+FLYc = ccw(FLY)
+# index the long edges of the auditorium: find flank (A->B, left), right diagonal (D->C) and the back (B->C)
+def edge_by_len(poly, minlen):
+    out = []
+    for i in range(len(poly)):
+        a, b = poly[i], poly[(i + 1) % len(poly)]
+        out.append((i, math.hypot(b[0] - a[0], b[1] - a[1])))
+    return out
+
+for (i, L) in edge_by_len(AUDc2, 0):
+    a, b = AUDc2[i], AUDc2[(i + 1) % 4]
+    mid = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+    if L < 30:
+        continue
+    if mid[1] < 5:   # front edge (inside front block / foyer): skip
+        continue
+    # fire escapes (two per long flank) + loading bays + ladders
+    fire_escape(AUDc2, i, L * 0.27, [6.8, 12.8, 18.8])
+    fire_escape(AUDc2, i, L * 0.73, [6.8, 12.8, 18.8])
+    for u_ in (L * 0.12, L * 0.5, L * 0.88):
+        loading_bay(AUDc2, i, u_)
+for (i, L) in edge_by_len(FLYc, 0):
+    a, b = FLYc[i], FLYc[(i + 1) % 4]
+    mid = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+    # skip the edge shared with the auditorium (its midpoint sits on the AUD back edge)
+    shared = any(math.hypot(mid[0] - (q[0] + r[0]) / 2, mid[1] - (q[1] + r[1]) / 2) < 3 for q, r in zip(AUDc2, AUDc2[1:] + AUDc2[:1]))
+    if shared or L < 15:
+        continue
+    for u_ in (L * 0.3, L * 0.7):
+        louvre_bank(FLYc, i, u_, 13.5)
+        louvre_bank(FLYc, i, u_, 25.0, h=5.0)
+    vladder(FLYc, i, L * 0.5, 1.0, FLY_H)
+    if L > 40:
+        loading_bay(FLYc, i, L * 0.25)
+        loading_bay(FLYc, i, L * 0.75)
+        fire_escape(FLYc, i, L * 0.5, [7.5, 14.5, 21.5, 28.5], w=4.6)
 
 # =====================================================================  FRONT BLOCK (cream/green faience)
 FRONT_LEN = 31.07

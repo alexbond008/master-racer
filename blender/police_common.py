@@ -118,7 +118,7 @@ def make_materials(paint=(0.92, 0.93, 0.95), paint_rough=0.25, paint_metal=0.5):
     mk('Rim', (0.72, 0.73, 0.76), 0.3, 0.9)
     mk('Chrome', (0.9, 0.9, 0.92), 0.12, 1.0)
     mk('Trim', (0.025, 0.025, 0.028), 0.6, 0.0)
-    mk('Interior', (0.07, 0.07, 0.075), 0.8, 0.0)
+    mk('Interior', (0.11, 0.11, 0.12), 0.8, 0.0)
     mk('Emit_Dash', (0.2, 1.0, 0.7), 0.4, 0.0, (0.2, 1.0, 0.7), 2.5)
     mk('Driver', (0.62, 0.43, 0.33), 0.7, 0.0)
     mk('HeadLight', (1.0, 0.95, 0.8), 0.1, 0.0, (1.0, 0.92, 0.72), 3.0)
@@ -701,7 +701,7 @@ class Car:
 
 
     # ------------------------------------------------------------ round 2: transparent windows + interior + officers
-    def cut_windows(self, cell=0.05):
+    def cut_windows(self, cell=0.025):
         """Remove body faces lying under the glass patches so the interior shows through the translucent glass."""
         bm, _ = self.groups['body']
         gb = bmesh.new()
@@ -716,13 +716,14 @@ class Car:
         def near(p, r):
             loc, n, i, dist = gtree.find_nearest(p, r)
             return loc is not None
-        for it in range(6):
+        for it in range(8):
             bmesh.ops.triangulate(bm, faces=bm.faces[:])
             todo = set()
             for f in bm.faces:
                 if any(e.calc_length() > cell for e in f.edges):
                     pts = [v.co for v in f.verts] + [f.calc_center_median()]
-                    if any(near(p, 0.03) for p in pts):
+                    flags = [near(p, 0.012) for p in pts]
+                    if any(flags) and not all(flags):         # straddles the window outline -> refine
                         for e in f.edges:
                             if e.calc_length() > cell:
                                 todo.add(e)
@@ -803,6 +804,7 @@ class Car:
             self.tbox(g, 'Interior', cx, y + depth / 2 + 0.02 + 0.125, ztop + back_h - 0.02, 0.15, 0.22, 0.08, 0.20, 0.07)  # headrest
 
     def interior(self, I):
+        self.s['roof_cut'] = I['roof_z'] - 0.06
         """I: dict of cabin layout (yy distances from front, heights z). Right-hand drive: driver at -X."""
         g = 'interior'
         Y = self.Y
@@ -1025,6 +1027,13 @@ class Car:
             for ob in list(bpy.context.scene.objects):
                 if ob.name in ('glass', 'lightbar_red', 'lightbar_blue', 'mirrors', 'strobes'):
                     ob.hide_render = True
+                if ob.name == 'interior':
+                    b = bmesh.new()
+                    b.from_mesh(ob.data)
+                    dead = [f for f in b.faces if f.calc_center_median().z > self.s['roof_cut']]
+                    bmesh.ops.delete(b, geom=dead, context='FACES')
+                    b.to_mesh(ob.data)
+                    b.free()
                 if ob.name in ('body', 'livery_blue', 'livery_yellow', 'livery_dark', 'trim', 'chrome', 'lights', 'plates'):
                     b = bmesh.new()
                     b.from_mesh(ob.data)

@@ -15,7 +15,9 @@ MATS = {}
 PRESETS = {
     # name: (base rgba, roughness, metallic, emission rgb, emission strength)
     'Paint': ((0.02, 0.02, 0.02, 1), 0.25, 0.5, None, 0),
-    'Glass': ((0.015, 0.02, 0.028, 1), 0.05, 0.3, None, 0),
+    'Glass': ((0.03, 0.04, 0.055, 0.3), 0.05, 0.3, None, 0),
+    'Seat': ((0.04, 0.07, 0.32, 1), 0.9, 0.0, (0.08, 0.14, 0.55), 0.7),
+    'Driver': ((0.025, 0.03, 0.06, 1), 0.8, 0.0, None, 0),
     'Tyre': ((0.015, 0.015, 0.015, 1), 0.92, 0.0, None, 0),
     'Rim': ((0.72, 0.73, 0.75, 1), 0.3, 0.9, None, 0),
     'Chrome': ((0.85, 0.85, 0.88, 1), 0.08, 1.0, None, 0),
@@ -42,6 +44,17 @@ def mat(name, color=None):
     b.inputs['Base Color'].default_value = base
     b.inputs['Roughness'].default_value = rough
     b.inputs['Metallic'].default_value = metal
+    if base[3] < 1.0:
+        b.inputs['Alpha'].default_value = base[3]
+        for attr, val in (('surface_render_method', 'BLENDED'), ('blend_method', 'BLEND')):
+            try:
+                setattr(m, attr, val)
+            except Exception:
+                pass
+        try:
+            m.use_backface_culling = False
+        except Exception:
+            pass
     if em:
         b.inputs['Emission Color'].default_value = (*em, 1)
         b.inputs['Emission Strength'].default_value = es
@@ -139,7 +152,7 @@ def cyl(part, c, axis, r, length, m, seg=20, r2=None, cap=True):
     b.free()
 
 
-def revolve(part, c, profile, m, seg=24, closed=False, smooth_faces=True, caps=True):
+def revolve(part, c, profile, m, seg=24, closed=False, smooth_faces=True, caps=True, rot=None):
     """Revolve profile [(radius, axial_x)] about the X axis through c."""
     b = bmesh.new()
     rings = []
@@ -160,7 +173,7 @@ def revolve(part, c, profile, m, seg=24, closed=False, smooth_faces=True, caps=T
         for ring, pr in ((rings[0], profile[0]), (rings[-1], profile[-1])):
             if pr[0] > 1e-6:
                 b.faces.new(ring)
-    _xform(b, c)
+    _xform(b, c, rot)
     part.merge(b, m)
     b.free()
 
@@ -203,9 +216,11 @@ class Loft:
     """Lofts a mirrored half-profile along Y.
     stations: list of dict(y=.., ...) passed to prof_fn(st)-> right-half pts [(x,z)] bottom-centre -> top-centre
     (first and last x must be 0). deform(x,y,z)->(x,y,z) optional.
+    cap_holes: {0: [(j0, j1, px)], -1: [...]} -> the end cap becomes a ladder of quads with rectangular openings
+    spanning ring rungs j0..j1 and |x| < px (for see-through windscreens).
     """
 
-    def __init__(self, stations, prof_fn, deform=None):
+    def __init__(self, stations, prof_fn, deform=None, cap_holes=None):
         self.st = stations
         self.n = None
         self.rings = []
@@ -230,29 +245,87 @@ class Loft:
                                        self.vg[i + 1][(k + 1) % self.N], self.vg[i + 1][k]])
                 f.smooth = True
                 self.fmap[(i, k)] = f
-        for ring in (self.vg[0], self.vg[-1]):
-            f = self.bm.faces.new(ring)
-            f.smooth = True
+        for end in (0, -1):
+            idx = 0 if end == 0 else len(self.st) - 1
+            holes = (cap_holes or {}).get(end)
+            if holes is None:
+                f = self.bm.faces.new(self.vg[idx])
+                f.smooth = True
+            else:
+                self._ladder(idx, holes)
         bmesh.ops.recalc_face_normals(self.bm, faces=self.bm.faces[:])
 
-    def kr(self, j):
-        """ring index of right-side point j"""
-        return j
+    def _ladder(self, idx, holes):
+        n, N = self.n, self.N
+        ring, raw = self.vg[idx], self.rings[idx]
 
-    def kl(self, j):
-        """ring index of left-side mirror of point j (1..n-2)"""
-        return self.N - j
+        def R(j):
+            return ring[j]
+
+        def Lf(j):
+            return ring[j] if j in (0, n - 1) else ring[N - j]
+
+        cache = {}
+
+        def P(j, sgn, px):
+            key = (j, sgn)
+            if key not in cache:
+                x, y, z = raw[j]
+                cache[key] = self.bm.verts.new(self.deform(sgn * px, y, z))
+            return cache[key]
+
+        for j in range(n - 1):
+            hole = None
+            for (j0, j1, px) in holes:
+                if j0 <= j < j1:
+                    hole = (j0, j1, px)
+            if hole is None:
+                if raw[j][2] == raw[j + 1][2] and (j == 0 or j + 1 == n - 1):
+                    continue
+                vs = [R(j), R(j + 1), Lf(j + 1), Lf(j)]
+                out = []
+                for v in vs:
+                    if not out or out[-1] is not v:
+                        out.append(v)
+                if len(out) > 1 and out[0] is out[-1]:
+                    out.pop()
+                if len(out) >= 3:
+                    f = self.bm.faces.new(out)
+                    f.smooth = True
+            else:
+                px = hole[2]
+                f = self.bm.faces.new([Lf(j), Lf(j + 1), P(j + 1, -1, px), P(j, -1, px)])
+                f.smooth = True
+                f = self.bm.faces.new([R(j + 1), R(j), P(j, 1, px), P(j + 1, 1, px)])
+                f.smooth = True
+
+    def hole_pane(self, end, j0, j1, px, off, nx=6):
+        idx = 0 if end == 0 else len(self.st) - 1
+        raw = self.rings[idx]
+        b = bmesh.new()
+        grid = []
+        for j in range(j0, j1 + 1):
+            row = []
+            for i in range(nx + 1):
+                x = lerp(-px, px, i / nx)
+                px_, py_, pz_ = self.deform(x, raw[j][1], raw[j][2])
+                row.append(b.verts.new((px_, py_ + off, pz_)))
+            grid.append(row)
+        for r in range(len(grid) - 1):
+            for i in range(nx):
+                f = b.faces.new([grid[r][i], grid[r][i + 1], grid[r + 1][i + 1], grid[r + 1][i]])
+                f.smooth = True
+        return b
+
+    def delete(self, faces):
+        bmesh.ops.delete(self.bm, geom=[f for f in faces if f.is_valid], context='FACES_ONLY')
 
     def patch(self, i0, i1, j0, j1, side):
-        """faces between stations i0..i1 (station indices) and ring points j0..j1 on side +1 (right/+x) / -1.
-        NOTE '+x' is the vehicle's left. side=+1 -> +x."""
+        """faces between stations i0..i1 (station indices) and ring points j0..j1 on side +1 (+x) / -1."""
         out = []
         for i in range(i0, i1):
             for j in range(j0, j1):
-                if side > 0:
-                    k = j
-                else:
-                    k = self.N - j - 1  # edge between left mirror of j+1 and j
+                k = j if side > 0 else self.N - j - 1
                 out.append(self.fmap[(i, k)])
         return out
 
@@ -269,15 +342,6 @@ class Loft:
             nf = b.faces.new(vs)
             nf.smooth = True
         return b
-
-    def to_part_obj(self, name, mat_name, smooth_angle=40):
-        p = Part(name, [mat_name])
-        me = bpy.data.meshes.new(name)
-        self.bm.to_mesh(me)
-        me.materials.append(mat(mat_name))
-        ob = bpy.data.objects.new(name, me)
-        bpy.context.scene.collection.objects.link(ob)
-        return ob
 
 
 def bmesh_from_obj(ob):
@@ -436,3 +500,26 @@ def cap_pane(y_plane, xs, zs, deform, off, nx=4, nz=2):
             f = b.faces.new([grid[i][j], grid[i + 1][j], grid[i + 1][j + 1], grid[i][j + 1]])
             f.smooth = True
     return b
+
+
+def sphere(part, c, r, m, scale=(1, 1, 1), sub=2):
+    b = bmesh.new()
+    bmesh.ops.create_icosphere(b, subdivisions=sub, radius=r)
+    _xform(b, c, None, scale)
+    for f in b.faces:
+        f.smooth = True
+    part.merge(b, m)
+    b.free()
+
+
+def set_emission(name, rgb, strength):
+    m = MATS[name]
+    bs = m.node_tree.nodes['Principled BSDF']
+    bs.inputs['Emission Color'].default_value = (*rgb, 1)
+    bs.inputs['Emission Strength'].default_value = strength
+
+
+def wheel_ring(part, c, r, tube, m, rot, seg=18, tseg=6):
+    """torus (steering wheel) about local X, then rotated by rot"""
+    prof = [(r + tube * math.cos(2 * math.pi * i / tseg), tube * math.sin(2 * math.pi * i / tseg)) for i in range(tseg)]
+    revolve(part, c, prof, m, seg=seg, closed=True, rot=rot)
