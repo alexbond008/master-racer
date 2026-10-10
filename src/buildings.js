@@ -30,7 +30,7 @@ export function windowTextures() {
 }
 
 // Pushes a textured box into the geometry list.
-export function box(list, cx, cz, w, d, h, color, y0 = 0, windows = true) {
+export function box(list, cx, cz, w, d, h, color, y0 = 0, windows = true, rot = 0) {
   const g = new THREE.BoxGeometry(w, h, d);
   const uv = g.attributes.uv, n = uv.count;
   const col = new Float32Array(n * 3);
@@ -48,6 +48,7 @@ export function box(list, cx, cz, w, d, h, color, y0 = 0, windows = true) {
   }
   uv.needsUpdate = true;
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  if (rot) g.rotateY(rot);
   g.translate(cx, y0 + h / 2, cz);
   list.push(g);
 }
