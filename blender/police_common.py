@@ -111,8 +111,8 @@ def make_materials(paint=(0.92, 0.93, 0.95), paint_rough=0.25, paint_metal=0.5):
     mk('Livery_Blue', (0.0, 0.07, 0.42), 0.35, 0.0)
     mk('Livery_Yellow', (1.0, 0.72, 0.0), 0.35, 0.0, (1.0, 0.7, 0.0), 0.25)
     mk('Livery_Dark', (0.012, 0.02, 0.09), 0.4, 0.0)
-    mk('Light_Red', (1.0, 0.05, 0.03), 0.2, 0.0, (1.0, 0.04, 0.02), 5.0)
-    mk('Light_Blue', (0.05, 0.2, 1.0), 0.2, 0.0, (0.1, 0.25, 1.0), 6.0)
+    mk('Light_Red', (1.0, 0.05, 0.03), 0.2, 0.0, (1.0, 0.03, 0.01), 3.5)
+    mk('Light_Blue', (0.05, 0.2, 1.0), 0.2, 0.0, (0.05, 0.15, 1.0), 4.0)
     return mats
 
 
@@ -318,7 +318,7 @@ class Car:
         return True
 
     # ------------------------------------------------------------ conformed patches
-    def patch(self, gname, mat, outline, mapper, direction, offset=0.004, maxlen=0.07, depth=0.0):
+    def patch(self, gname, mat, outline, mapper, direction, offset=0.004, maxlen=0.04, depth=0.0, reject_bad=False):
         d = Vector(direction).normalized()
         b2 = bmesh.new()
         vs = [b2.verts.new((a, b, 0)) for a, b in outline]
@@ -339,7 +339,10 @@ class Car:
         for v in b2.verts:
             a, b = v.co.x, v.co.y
             loc, nor = self.cast(mapper(a, b), d)
-            if loc is None:
+            if loc is None or (reject_bad and nor.dot(-d) < 0.5):
+                if reject_bad:
+                    b2.free()
+                    return
                 miss.append(v)
                 continue
             hitn[v.index] = nor
@@ -543,6 +546,115 @@ class Car:
             ob.location = (xc, self.Y(yy), R)
             bpy.context.collection.objects.link(ob)
             self.wheel_objs.append(ob)
+
+    # ------------------------------------------------------------ police equipment
+    def add_glass(self, side_windows, windscreen, rear_window, off=0.006):
+        """side_windows: polygons in (yy, z); windscreen/rear_window: polygons in (x, yy)."""
+        for sx in (1, -1):
+            for poly in side_windows:
+                self.patch('glass', 'Glass', chaikin(poly, 2), self.side_mapper(sx), (-sx, 0, 0), offset=off, maxlen=0.05)
+        self.patch('glass', 'Glass', chaikin(windscreen, 2), self.top_mapper(), (0, 0, -1), offset=off, maxlen=0.06)
+        self.patch('glass', 'Glass', chaikin(rear_window, 2), self.top_mapper(), (0, 0, -1), offset=off, maxlen=0.06)
+
+    def surround(self, outline, mapper, direction, grow=1.15, offset=0.002):
+        cx = sum(p[0] for p in outline) / len(outline)
+        cy = sum(p[1] for p in outline) / len(outline)
+        o2 = [(cx + (a - cx) * grow, cy + (b - cy) * grow) for a, b in outline]
+        self.patch('trim', 'Trim', o2, mapper, direction, offset=offset, maxlen=0.04)
+
+    def side_band(self, y0, y1, z0, rowh, rows=2, tilelen=0.24, skip=None):
+        n = max(1, round((y1 - y0) / tilelen))
+        tl = (y1 - y0) / n
+        for sx in (1, -1):
+            mp = self.side_mapper(sx)
+            dr = (-sx, 0, 0)
+            for row in range(rows):
+                for i in range(n):
+                    a0, a1 = y0 + i * tl, y0 + (i + 1) * tl
+                    b0, b1 = z0 + row * rowh, z0 + (row + 1) * rowh
+                    pts = [(a0, b0), (a1, b0), (a1, b1), (a0, b1), ((a0 + a1) / 2, (b0 + b1) / 2)]
+                    if not self.ok_pts(mp, dr, pts, nmin=0.75):
+                        continue
+                    blue = (i + row) % 2 == 0
+                    self.patch('livery_blue' if blue else 'livery_yellow', 'Livery_Blue' if blue else 'Livery_Yellow',
+                               rect(a0, a1, b0, b1), mp, dr, offset=0.004, maxlen=0.09)
+            # dark pin-stripes above and below
+            for (b0, b1) in ((z0 - 0.025, z0), (z0 + rows * rowh, z0 + rows * rowh + 0.025)):
+                self.patch('livery_dark', 'Livery_Dark', rect(y0, y1, b0, b1), mp, dr, offset=0.004, maxlen=0.12)
+
+    def back_band(self, xh, z0, rowh, rows=2, tilelen=0.22, front=False):
+        n = max(1, round(2 * xh / tilelen))
+        tl = 2 * xh / n
+        mp = self.front_mapper() if front else self.rear_mapper()
+        dr = (0, 1, 0) if front else (0, -1, 0)
+        for row in range(rows):
+            for i in range(n):
+                a0, a1 = -xh + i * tl, -xh + (i + 1) * tl
+                b0, b1 = z0 + row * rowh, z0 + (row + 1) * rowh
+                pts = [(a0, b0), (a1, b0), (a1, b1), (a0, b1), ((a0 + a1) / 2, (b0 + b1) / 2)]
+                if not self.ok_pts(mp, dr, pts, nmin=0.6):
+                    continue
+                blue = (i + row) % 2 == 0
+                self.patch('livery_blue' if blue else 'livery_yellow', 'Livery_Blue' if blue else 'Livery_Yellow',
+                           rect(a0, a1, b0, b1), mp, dr, offset=0.004, maxlen=0.09)
+
+    def side_sill(self, y0, y1, z0, z1):
+        for sx in (1, -1):
+            mp = self.side_mapper(sx)
+            dr = (-sx, 0, 0)
+            self.patch('trim', 'Trim', rect(y0, y1, z0, z1), mp, dr, offset=0.0035, maxlen=0.12, reject_bad=True)
+
+    def door_line(self, yy, z0, z1, w=0.006):
+        for sx in (1, -1):
+            mp = self.side_mapper(sx)
+            dr = (-sx, 0, 0)
+            if self.ok_pts(mp, dr, [(yy, z0), (yy, z1), (yy, (z0 + z1) / 2)], nmin=0.7):
+                self.patch('trim', 'Trim', rect(yy - w / 2, yy + w / 2, z0, z1), mp, dr, offset=0.0025, maxlen=0.1)
+
+    def handle(self, yy, z, length=0.13, h=0.022):
+        for sx in (1, -1):
+            mp = self.side_mapper(sx)
+            dr = (-sx, 0, 0)
+            self.patch('trim', 'Trim', rrect(yy - length / 2, yy + length / 2, z - h / 2, z + h / 2, 1), mp, dr, offset=0.006, maxlen=0.05)
+
+    def lightbar(self, yy, width, depth, height=0.05, mat_pairs=None):
+        """roof light bar: outer modules blue, inner modules red, black base + feet."""
+        y = self.Y(yy)
+        zs = []
+        for x in (-width / 2, -width / 4, 0, width / 4, width / 2):
+            for dy in (-depth / 2, 0, depth / 2):
+                loc, nor = self.cast((x, y + dy, 6), (0, 0, -1))
+                zs.append(loc.z)
+        zr = min(zs)
+        zb = max(zs) + 0.012
+        # feet
+        for sx in (-1, 1):
+            self.tbox('trim', 'Trim', sx * width * 0.34, y, zr - 0.02, zb - zr + 0.02, 0.05, depth * 0.85, 0.05, depth * 0.85)
+        # base slab
+        fs = self.tbox('trim', 'Trim', 0, y, zb, 0.022, width, depth, width - 0.02, depth - 0.02)
+        zt = zb + 0.022
+        # centre divider
+        self.tbox('trim', 'Trim', 0, y, zt, height * 0.9, 0.05, depth * 0.8, 0.04, depth * 0.55)
+        # modules: inner red, outer blue
+        mw = width * 0.5 - 0.03
+        inner = (width / 2 - 0.03) * 0.46
+        for sx in (-1, 1):
+            # red inner
+            cx = sx * (0.025 + inner / 2 + 0.005)
+            fs = self.tbox('lightbar_red', 'Light_Red', cx, y, zt, height, inner, depth * 0.94, inner - 0.035, depth * 0.62)
+            self.bevel_faces('lightbar_red', fs, 0.012, 2)
+            # blue outer
+            ow = width / 2 - 0.03 - inner - 0.035
+            cx2 = sx * (0.025 + inner + 0.01 + ow / 2)
+            fs = self.tbox('lightbar_blue', 'Light_Blue', cx2, y, zt, height, ow, depth * 0.94, ow - 0.035, depth * 0.62)
+            self.bevel_faces('lightbar_blue', fs, 0.012, 2)
+
+    def mirror(self, yy, x, z, w=0.13, d=0.1, h=0.10):
+        for sx in (-1, 1):
+            fs = self.tbox('mirrors', 'Paint', sx * x, self.Y(yy), z, h, w, d, w * 0.8, d * 0.75, shift_y=d * 0.1)
+            self.bevel_faces('mirrors', fs, 0.012, 2)
+            # stem towards body
+            self.tbox('mirrors', 'Paint', sx * (x - 0.07), self.Y(yy) + 0.02, z - 0.03, 0.05, 0.16, 0.07, 0.12, 0.05)
 
     # ------------------------------------------------------------ finalize groups to objects
     def finalize(self):

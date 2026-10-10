@@ -455,5 +455,11 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 // debug hook
-window.__game = { audio, races, get menu() { return menu; }, persist, composer, bloom, traffic, police, game, world, weather, scene, camera, renderer, setCar, input, hud, start: () => { started = true; game.started = true; $('title').style.display = 'none'; } };
+// dev helper: drop the player onto the nearest main road at (x,z)
+async function teleportTo(x, z) {
+  const nr = world.net.nearest(x, z, 300, e => e.cls <= 2) || world.net.nearest(x, z, 300), lp = world.net.lanePoint(nr.e, 1, nr.s);
+  placePlayerPose(lp.x, lp.z, Math.atan2(lp.tx, lp.tz)); game.phys.vx = game.phys.vz = 0; world.preload(lp.x, lp.z);
+  await new Promise(r => setTimeout(r, 1500)); return nr.e.name;
+}
+window.__game = { teleportTo, audio, races, get menu() { return menu; }, persist, composer, bloom, traffic, police, game, world, weather, scene, camera, renderer, setCar, input, hud, start: () => { started = true; game.started = true; $('title').style.display = 'none'; } };
 void MPH;

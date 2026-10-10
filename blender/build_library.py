@@ -12,22 +12,22 @@ rng = random.Random(7)
 b = B().frame(-1.3, 4.1, 6.7)       # footprint rect centre + yaw from OSM polygon
 W, D = 25.0, 42.6; hx, hy = W/2, D/2
 H = 22.0; Z_ARM = 12.0; YS = 0.0     # stem begins at local y=0
-cuA = mat('Copper_A', (118, 178, 160), 0.45, 0.35)
-cuB = mat('Copper_B', (96, 160, 142), 0.5, 0.35)
-cuC = mat('Copper_C', (140, 192, 172), 0.45, 0.35)
+cuA = mat('Copper_A', (132, 204, 180), 0.45, 0.3)
+cuB = mat('Copper_B', (108, 178, 156), 0.5, 0.3)
+cuC = mat('Copper_C', (150, 214, 190), 0.45, 0.3)
 soff = mat('Soffit', (74, 50, 34), 0.7)
 steel = mat('Steel', (38, 40, 46), 0.4, 0.8)
-roof = mat('Roof', (60, 66, 66), 0.8)
+roof = mat('Roof', (96, 108, 104), 0.8)
 dark = mat('Glass_Dark', (22, 30, 42), 0.1, 0.5)
 beret = mat('Beret', (235, 70, 25), 0.35, 0.1, emit=(255, 80, 20), strength=0.8)
-pod2 = mat('Pod_Pale', (190, 175, 150), 0.6)
+pod2 = mat('Pod_Pale', (170, 200, 190), 0.4, 0.5)
 steelc = mat('Stainless', (200, 205, 210), 0.3, 0.9)
 signm = mat('Emit_Sign', (255, 255, 255), 0.4, emit=(235, 245, 255), strength=3.5)
 winw = mat('Emit_Window', (255, 214, 140), 0.3, emit=(255, 196, 110), strength=3.5)
 pal = [('lime', (205, 235, 40)), ('red', (225, 35, 40)), ('orange', (245, 120, 30)), ('green', (30, 170, 70)),
        ('teal', (20, 160, 160)), ('blue', (40, 90, 220)), ('black', (18, 18, 22)), ('yellow', (250, 220, 40)),
-       ('clear', (160, 200, 230)), ('magenta', (200, 30, 110))]
-gm = {n: mat('Emit_Glass_' + n, c, 0.15, 0.2, emit=c, strength=(0.6 if n == 'black' else 2.0 if n != 'clear' else 1.2)) for n, c in pal}
+       ('clear', (110, 150, 200)), ('magenta', (200, 30, 110))]
+gm = {n: mat('Emit_Glass_' + n, c, 0.15, 0.2, emit=c, strength=(0.3 if n == 'black' else 1.1 if n != 'clear' else 0.7)) for n, c in pal}
 seq = ['lime', 'lime', 'clear', 'red', 'orange', 'clear', 'green', 'teal', 'black', 'clear', 'lime', 'yellow', 'blue', 'clear', 'red', 'magenta', 'clear', 'lime', 'teal', 'blue', 'clear', 'orange', 'green', 'black']
 
 # ---- structural core boxes (copper skin)
@@ -81,12 +81,11 @@ for i in range(8):
     b.box(steel, x0 - 0.2, x0 - 0.05, YS - 0.1, YS - 0.03, 0.0, Z_ARM)
 # ---- raking steel columns under the arm
 r = random.Random(3)
-for yt in (-19.5, -13.5, -7.5, -2.0):
-    for xt in (-10.0, -4.5, 1.0, 6.5, 11.0):
-        if yt in (-13.5, -7.5) and xt in (-10.0, 11.0): continue
+for yt in (-19.0, -10.5, -2.5):
+    for xt in (-10.0, -3.0, 4.0, 11.0):
         top = (xt + r.uniform(-0.5, 0.5), yt, Z_ARM - 0.7)
-        bot = (xt + r.uniform(-3.5, 3.5), yt + r.uniform(-4.0, 3.5), 0.0)
-        b.beam(steel, bot, top, w=0.16, n=6)
+        bot = (xt + r.uniform(-2.2, 2.2), yt + r.uniform(-3.0, 2.0), 0.0)
+        b.beam(steel, bot, top, w=0.21, n=6)
 # downlights under soffit
 for yy in (-18, -12, -6, -1.5):
     for xx in (-8, -2.7, 2.7, 8):
@@ -103,7 +102,7 @@ for k in range(4): b.wrect(winw, (5.2 + k * 1.4, 12.0, H + 1.2), (1, 0), (0, -1)
 b.box(roof, -9, -3, 8, 13, H + 0.35, H + 1.8)
 # parapet
 for (x0, x1, y0, y1) in ((-hx, hx, hy - 0.2, hy), (-hx, hx, -hy, -hy + 0.2), (-hx, -hx + 0.2, -hy, hy), (hx - 0.2, hx, -hy, hy)):
-    b.box(steel, x0, x1, y0, y1, H + 0.35, H + 0.9)
+    b.box(cuB, x0, x1, y0, y1, H + 0.35, H + 0.9)
 objs = b.build('library')
 # LIBRARY letters, stainless, glowing slightly, standing on the front roof edge facing -Y
 px, py, pz = Frame(-1.3, 4.1, 6.7).p(-3.0, -hy - 0.15, H + 0.9)
