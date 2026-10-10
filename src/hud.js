@@ -1,5 +1,5 @@
 import { MPH } from './cars.js';
-import { SIZE, CELL, ROAD, BLOCK, DISTRICTS, N } from './world.js';
+import { DISTRICTS, WORLD } from './world.js';
 
 const $ = id => document.getElementById(id);
 
@@ -9,50 +9,53 @@ export class Hud {
     this.sp = $('speedo').getContext('2d');
     this.mm = $('minimap').getContext('2d');
     this.big = $('bigmapCanvas'); this.bigCtx = this.big.getContext('2d');
+    this.big.width = 760; this.big.height = Math.round(760 * (WORLD.h + 120) / (WORLD.w + 120));
     this.mapImg = this.renderMap();
     this.route = null; this.dest = null;
     this.bigOpen = false;
-    this.zoom = 0.75;
+    this.zoom = 0.9;
 
     this.big.addEventListener('click', e => {
       const r = this.big.getBoundingClientRect();
       const px = (e.clientX - r.left) / r.width, pz = (e.clientY - r.top) / r.height;
-      const wx = -60 + px * (SIZE + 120), wz = -60 + pz * (SIZE + 120);
+      const wx = -60 + px * (WORLD.w + 120), wz = -60 + pz * (WORLD.h + 120);
       this.onSetDest?.(wx, wz);
     });
   }
 
   renderMap() {
-    const S = 0.6, W = Math.round((SIZE + 120) * S);
-    const cv = document.createElement('canvas'); cv.width = cv.height = W;
+    const S = 0.4, net = this.world.net, W = WORLD.w, H = WORLD.h;
+    const cv = document.createElement('canvas'); cv.width = Math.round((W + 120) * S); cv.height = Math.round((H + 120) * S);
     const x = cv.getContext('2d');
     x.scale(S, S); x.translate(60, 60);
-    x.fillStyle = '#4c515b'; x.fillRect(-60, -60, SIZE + 120, SIZE + 120); // roads
-    // outside map
-    x.fillStyle = '#15171b'; x.fillRect(-60, -60, SIZE + 120, 51); x.fillRect(-60, SIZE + 9, SIZE + 120, 51); x.fillRect(-60, -60, 51, SIZE + 120); x.fillRect(SIZE + 9, -60, 51, SIZE + 120);
-    for (const b of this.world.blocks) {
-      const r = b.rect;
-      x.fillStyle = b.type === 'park' ? '#1f4a26' : (b.type === 'arches' ? '#7a4332' : b.type === 'carpark' ? '#8a8a88' : b.type === 'rink' ? '#2b6fd6' : '#1c1e23');
-      x.fillRect(r.x0, r.z0, BLOCK, BLOCK);
+    x.fillStyle = '#0f1013'; x.fillRect(-60, -60, W + 120, H + 120);
+    x.fillStyle = '#1c1e23'; x.fillRect(0, 0, W, H);
+    x.fillStyle = '#1f4a26';
+    for (const pk of this.world.parks) { x.beginPath(); pk.pts.forEach(([px, pz], i) => (i ? x.lineTo(px, pz) : x.moveTo(px, pz))); x.closePath(); x.fill(); }
+    // roads, big ones on top
+    const width = [11, 9, 7.5, 5.5], color = ['#7a7f8a', '#666b76', '#555a64', '#454953'];
+    x.lineCap = 'round'; x.lineJoin = 'round';
+    for (const cls of [3, 2, 1, 0]) {
+      x.strokeStyle = color[cls]; x.lineWidth = width[cls]; x.beginPath();
+      for (const e of net.edges) if (e.cls === cls) e.pts.forEach(([px, pz], i) => (i ? x.lineTo(px, pz) : x.moveTo(px, pz)));
+      x.stroke();
     }
-    // district tint wash
+    x.strokeStyle = '#d9a441'; x.lineWidth = 3; x.beginPath(); for (const e of net.edges) if (e.a23) e.pts.forEach(([px, pz], i) => (i ? x.lineTo(px, pz) : x.moveTo(px, pz))); x.stroke();
+    // district wash + names
     for (const k in DISTRICTS) {
-      const d = DISTRICTS[k];
-      const g = x.createRadialGradient(d.c[0], d.c[1], 20, d.c[0], d.c[1], 280);
-      g.addColorStop(0, d.tint + '55'); g.addColorStop(1, d.tint + '00');
-      x.fillStyle = g; x.fillRect(d.c[0] - 280, d.c[1] - 280, 560, 560);
-      x.fillStyle = '#fff'; x.font = 'bold 44px "Arial Narrow", Arial'; x.textAlign = 'center';
-      x.fillText(d.name, d.c[0], d.c[1] - 40);
+      const d = DISTRICTS[k], g = x.createRadialGradient(d.c[0], d.c[1], 20, d.c[0], d.c[1], 320);
+      g.addColorStop(0, d.tint + '44'); g.addColorStop(1, d.tint + '00'); x.fillStyle = g; x.fillRect(d.c[0] - 320, d.c[1] - 320, 640, 640);
+      x.fillStyle = '#fff'; x.font = 'bold 56px "Arial Narrow", Arial'; x.textAlign = 'center'; x.fillText(d.name, d.c[0], d.c[1] - 60);
     }
-    this.landmarks = this.world.landmarks;
-    for (const l of this.landmarks) { x.fillStyle = '#ffb400'; x.beginPath(); x.arc(l.x, l.z, 10, 0, 7); x.fill(); }
-    // main roads, labelled
-    x.fillStyle = '#ffffffcc'; x.font = 'bold 22px "Arial Narrow", Arial'; x.textAlign = 'center';
-    x.save(); x.translate(8 * CELL, 14 * CELL); x.rotate(-Math.PI / 2); x.fillText('A23  BRIXTON HILL · STREATHAM HILL', 0, -12); x.restore();
-    x.save(); x.translate(17 * CELL, 8 * CELL); x.rotate(-Math.PI / 2); x.fillText('RYE LANE', 0, -12); x.restore();
-    x.fillText('COLDHARBOUR LANE', 6 * CELL, 9 * CELL - 12); x.fillText('PECKHAM HIGH STREET', 18 * CELL, 6 * CELL - 12);
-    // thames hint (north edge)
-    x.fillStyle = '#17304f'; x.fillRect(-60, -60, SIZE + 120, 30);
+    for (const l of this.world.landmarks) { x.fillStyle = '#ffb400'; x.beginPath(); x.arc(l.x, l.z, 9, 0, 7); x.fill(); }
+    // road names: longest edge of each distinct main road
+    const best = new Map();
+    for (const e of net.edges) if (e.cls <= 1 && e.name && e.len > 90 && (!best.has(e.name) || best.get(e.name).len < e.len)) best.set(e.name, e);
+    x.fillStyle = '#ffffffcc'; x.font = 'bold 26px "Arial Narrow", Arial'; x.textAlign = 'center';
+    for (const [name, e] of best) {
+      const m = net.pointAt(e, 1, e.len / 2); let a = Math.atan2(m.tz, m.tx); if (a > Math.PI / 2) a -= Math.PI; if (a < -Math.PI / 2) a += Math.PI;
+      x.save(); x.translate(m.x, m.z); x.rotate(a); x.fillText(name, 0, -9); x.restore();
+    }
     return cv;
   }
 
@@ -89,7 +92,7 @@ export class Hud {
     this.cs = Z;
     ctx.save(); ctx.clearRect(0, 0, W, W);
     ctx.translate(W / 2, W / 2 + 40); ctx.rotate(p.th - Math.PI); ctx.scale(Z, Z); ctx.translate(-p.x, -p.z);
-    ctx.drawImage(this.mapImg, -60, -60, SIZE + 120, SIZE + 120);
+    ctx.drawImage(this.mapImg, -60, -60, WORLD.w + 120, WORLD.h + 120);
     this.drawRoute(ctx, 10);
     this.drawBlips(ctx, Z);
     ctx.restore();
@@ -101,11 +104,12 @@ export class Hud {
   }
 
   bigmap(p) {
-    const c = this.bigCtx, W = this.big.width;
-    c.clearRect(0, 0, W, W);
-    c.drawImage(this.mapImg, 0, 0, W, W);
-    c.save(); c.scale(W / (SIZE + 120), W / (SIZE + 120)); c.translate(60, 60);
-    this.cs = W / (SIZE + 120);
+    const c = this.bigCtx, W = this.big.width, Hh = this.big.height;
+    c.clearRect(0, 0, W, Hh);
+    c.drawImage(this.mapImg, 0, 0, W, Hh);
+    const k = W / (WORLD.w + 120);
+    c.save(); c.scale(k, k); c.translate(60, 60);
+    this.cs = k;
     this.drawRoute(c, 12);
     this.drawBlips(c, this.cs);
     c.translate(p.x, p.z); c.rotate(-p.th + Math.PI);
@@ -176,5 +180,3 @@ export class Hud {
     st.innerHTML = [1, 2, 3, 4, 5].map(i => `<span class="${i <= heat ? 'on' : ''}">★</span>`).join('');
   }
 }
-export const MAPN = N;
-void CELL; void ROAD;

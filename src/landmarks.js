@@ -159,3 +159,55 @@ export function barrelArena(group, r, ctx) { // 1931 Streatham Ice Arena: curved
   put(group, new THREE.PlaneGeometry(18, 3.4), sign('ICE ARENA', 18, 3.4, '#0a2b5a', '#9de3ff', 'OPEN SKATE · TONIGHT'), cx, 6, r.z1 - 0.8 + 0.2);
   return {};
 }
+
+// ---------------- moved from the old grid world
+export function arches(group, r, ctx) { // Brixton viaduct arches + a commuter train on the deck
+  const w = r.x1 - r.x0, d = r.z1 - r.z0;
+  const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 256;
+  const x = cv.getContext('2d');
+  x.fillStyle = '#6e3a2a'; x.fillRect(0, 0, 1024, 256);
+  for (let y = 0; y < 256; y += 16) for (let xx = 0; xx < 1024; xx += 32) { x.fillStyle = (y / 16) % 2 ? '#5b2f22' : '#7a4332'; x.fillRect(xx + ((y / 16) % 2 ? 16 : 0), y, 30, 14); }
+  for (let i = 0; i < 8; i++) {
+    const ax = 20 + i * 126;
+    x.fillStyle = '#0c0805'; x.beginPath(); x.moveTo(ax, 256); x.lineTo(ax, 110); x.arc(ax + 43, 110, 43, Math.PI, 0); x.lineTo(ax + 86, 256); x.fill();
+    x.fillStyle = i % 3 === 0 ? '#ffb347' : (i % 3 === 1 ? '#ff4fa3' : '#31e0ff'); x.fillRect(ax + 10, 150, 66, 100);
+  }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+  const wall = new THREE.MeshStandardMaterial({ map: t, emissiveMap: t, emissive: 0xffffff, emissiveIntensity: 0.55, roughness: 0.9 });
+  const cx = (r.x0 + r.x1) / 2, cz = (r.z0 + r.z1) / 2;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w, 7, 12), wall);
+  body.position.set(cx, 3.5, r.z0 + 6); group.add(body);
+  const body2 = body.clone(); body2.position.z = r.z1 - 6; group.add(body2);
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(w, 1, d), new THREE.MeshStandardMaterial({ color: 0x3b3b3f })); deck.position.set(cx, 7.5, cz); group.add(deck);
+  // fill the middle so it's collidable-looking solid
+  const mid = new THREE.Mesh(new THREE.BoxGeometry(w, 7, d - 24), new THREE.MeshStandardMaterial({ color: 0x3f2a22 })); mid.position.set(cx, 3.5, cz); group.add(mid);
+  // a commuter train crossing the viaduct deck (loops forever)
+  const train = new THREE.Group(), carMat = new THREE.MeshStandardMaterial({ color: 0x1d2a52, metalness: 0.4, roughness: 0.45 }), winMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 2, 1.4) });
+  for (let c = 0; c < 4; c++) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(13.5, 3.1, 2.7), carMat); b.position.set(c * 14.2, 1.6, 0); train.add(b);
+    const win = new THREE.Mesh(new THREE.BoxGeometry(12, 0.8, 2.78), winMat); win.position.set(c * 14.2, 2.1, 0); train.add(win);
+  }
+  train.position.set(r.x0 - 80, 8, cz); group.add(train);
+  const rail = new THREE.Mesh(new THREE.BoxGeometry(w + 300, 0.15, 0.15), new THREE.MeshStandardMaterial({ color: 0x777777 })); for (const dz of [-0.7, 0.7]) { const rr = rail.clone(); rr.position.set(cx, 8.1, cz + dz); group.add(rr); }
+  let tx = r.x0 - 80; ctx.update.push(dt => { tx += 26 * dt; if (tx > r.x1 + 80) tx = r.x0 - 110; train.position.x = tx; });
+  // railway sign light
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.4), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.3, 4, 0.5) })); lamp.position.set(cx, 8.6, cz); group.add(lamp);
+}
+
+export function carpark(group, r) { // Peckham multi-storey (Levels / Bold Tendencies)
+  const w = r.x1 - r.x0, d = r.z1 - r.z0, cx = (r.x0 + r.x1) / 2, cz = (r.z0 + r.z1) / 2;
+  const slab = new THREE.MeshStandardMaterial({ color: 0x9a9a96, roughness: 0.95 });
+  const pil = new THREE.MeshStandardMaterial({ color: 0x77777a, roughness: 0.95 });
+  const strip = new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 3.2, 3.6) });
+  for (let l = 0; l < 10; l++) {
+    const y = l * 3.2;
+    const s = new THREE.Mesh(new THREE.BoxGeometry(w, 0.5, d), slab); s.position.set(cx, y + 0.25, cz); group.add(s);
+    const p = new THREE.Mesh(new THREE.BoxGeometry(w, 0.9, 0.25), pil); p.position.set(cx, y + 3.2 - 0.45 + 0.5, r.z0 + 0.12); group.add(p);
+    const p2 = p.clone(); p2.position.z = r.z1 - 0.12; group.add(p2);
+    const lt = new THREE.Mesh(new THREE.BoxGeometry(w * 0.8, 0.08, 0.15), strip); lt.position.set(cx, y + 2.9, cz); group.add(lt);
+  }
+  for (let ix = 0; ix < 5; ix++) for (let iz = 0; iz < 5; iz++) {
+    const c = new THREE.Mesh(new THREE.BoxGeometry(0.7, 32.2, 0.7), pil);
+    c.position.set(r.x0 + 1 + ix * ((w - 2) / 4), 16.1, r.z0 + 1 + iz * ((d - 2) / 4)); group.add(c);
+  }
+}

@@ -7,7 +7,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { CARS, CAR_ORDER, MPH } from './cars.js';
 import { CarPhysics } from './car.js';
 import { buildCar, updateCarModel } from './carModel.js';
-import { buildWorld, DISTRICTS, CELL, SIZE } from './world.js';
+import { buildWorld, DISTRICTS } from './world.js';
 import { Weather, WEATHER } from './weather.js';
 import { Input } from './input.js';
 import { Hud } from './hud.js';
@@ -34,8 +34,9 @@ const moon = new THREE.DirectionalLight(0xa9b9ff, 0.55); moon.position.set(-300,
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 scene.environmentIntensity = 0.45;
-const world = buildWorld(scene);
-const weather = new Weather(scene, hemi, moon, world.groundMat, $('flash'));
+const netData = await (await fetch('/data/southlondon.json')).json();
+const world = buildWorld(scene, netData);
+const weather = new Weather(scene, hemi, moon, world.groundMats, $('flash'));
 const input = new Input();
 const hud = new Hud(world);
 
@@ -77,17 +78,20 @@ function setCar(id) {
 if (!CARS[game.save.carId] || !game.save.owned.includes(game.save.carId)) game.save.carId = 'fiat126';
 game.cash = game.save.cash;
 setCar(game.save.carId);
-const spawn = () => {
-  const [sx, sz] = world.nodePos(6, 9);
-  game.phys.place(sx - 4.5, sz, Math.PI); // northbound, LEFT lane (UK)
-  camTh = Math.PI; camPos.set(sx, 4, sz + 10);
-};
 let camTh = Math.PI; const camPos = new THREE.Vector3();
+const placePlayerPose = (x, z, th) => { game.phys.place(x, z, th); camTh = th; camPos.set(x - Math.sin(th) * 9, 4, z - Math.cos(th) * 9); };
+const spawn = () => placePlayerPose(world.spawn.x, world.spawn.z, world.spawn.th); // on the A23 by Lambeth Town Hall, left lane
+// put the player back on the nearest road (R key), facing along it
+function snapToRoad() {
+  const p = game.phys, nr = world.net.nearest(p.x, p.z, 300); if (!nr) return;
+  const dir = nr.tx * Math.sin(p.th) + nr.tz * Math.cos(p.th) >= 0 ? 1 : -1, e = nr.e, d = e.oneway ? 1 : dir;
+  const lp = world.net.lanePoint(e, d, d === 1 ? nr.s : e.len - nr.s); placePlayerPose(lp.x, lp.z, Math.atan2(lp.tx, lp.tz));
+}
 spawn();
 
 // ---------- traffic + police
 await preloadKenney(KENNEY_FILES);
-const traffic = new Traffic(scene, world, 38);
+const traffic = new Traffic(scene, world, 55);
 const police = new PoliceSystem(scene, world);
 police.seedPatrols(game.phys, 6);
 const starText = n => '★'.repeat(n);
@@ -97,8 +101,8 @@ function banner(text, color = '#ffb400', sub = '', secs = 2.4) {
 }
 function respawnPlayer() { spawn(); game.hp = 100; game.phys.nitro = 100; }
 // ---------- Master Customs shop (Brixton)
-const SHOP = { node: [5, 9] };
-const shopPos = [SHOP.node[0] * CELL, SHOP.node[1] * CELL];
+const shopNr = world.net.nearest(world.places.shop[0], world.places.shop[1], 300, e => e.cls <= 2) || world.net.nearest(world.places.shop[0], world.places.shop[1], 300);
+const shopPos = [shopNr.px, shopNr.pz];
 {
   const g = new THREE.Group();
   const col = new THREE.Color(0.3, 1.2, 3.2);
@@ -140,7 +144,7 @@ const carName = id => CARS[id].name;
 function raceWager() { return game.carId !== 'fiat126' && !RIVALS[game.save.raceIdx]?.slipFree ? game.carId : null; }
 const raceHooks = {
   banner: (...a) => banner(...a), toast: t => toast(t),
-  placePlayer: (x, z, th) => { game.phys.place(x, z, th); game.hp = 100; game.phys.nitro = 100; camTh = th; camPos.set(x - Math.sin(th) * 8, 4, z - Math.cos(th) * 8); },
+  placePlayer: (x, z, th) => { placePlayerPose(x, z, th); game.hp = 100; game.phys.nitro = 100; },
   onEnd: (result, st) => {
     const r = st.r, save = game.save;
     if (result === 'win') {
@@ -164,7 +168,7 @@ const raceHooks = {
     if (result === 'win') setTimeout(() => respawnAtPin(st.i), 3500);
   },
 };
-function respawnAtPin(i) { const r = RIVALS[i]; game.phys.place(r.start[0] * CELL - 4.5, r.start[1] * CELL + 20, Math.PI); }
+function respawnAtPin(i) { const po = races.startPose(i); placePlayerPose(po.x, po.z, po.th); }
 function openDialog(i) {
   const info = races.routeInfo(i), r = RIVALS[i];
   menu = { type: 'dialog', i, wager: raceWager(), info };
@@ -176,8 +180,8 @@ function startRace() {
   weather.set(r.weather);
   const st = races.begin(i, game.phys, game.phys.def, raceHooks);
   st.wager = m.wager;
-  game.route = [[r.start[0] * CELL, r.start[1] * CELL], ...st.cps]; game.routeIdx = 0; game.dest = st.cps[st.cps.length - 1];
-  hud.setRoute(game.route, game.dest);
+  game.route = [...st.cps]; game.routeIdx = 0; game.dest = st.cps[st.cps.length - 1];
+  hud.setRoute(st.line, game.dest);
   toast(WEATHER[r.weather].label);
 }
 function endRaceNow(result) { if (races.state && races.state.stage !== 'done') races.end(result, raceHooks); }
@@ -204,9 +208,10 @@ let smokeI = 0;
 // ---------- route
 hud.onSetDest = (wx, wz) => {
   const p = game.phys;
-  const from = world.nearestNode(p.x, p.z), to = world.nearestNode(wx, wz);
-  game.route = world.route(from, to); game.routeIdx = 0; game.dest = game.route[game.route.length - 1];
-  hud.setRoute(game.route, game.dest);
+  const r = world.routeToPoint(p.x, p.z, wx, wz);
+  if (!r || r.nodes.length < 2) { toast('NO ROUTE FOUND'); return; }
+  game.route = r.nodes; game.routeIdx = 0; game.dest = r.nodes[r.nodes.length - 1];
+  hud.setRoute(r.poly, game.dest);
   toast('ROUTE SET');
   setBeacon(game.dest);
   hud.toggleMap(false);
@@ -281,7 +286,7 @@ function frame(now) {
     else if (shopAt(game.phys) && input.was('Enter') && now - startAt > 400) { if (police.stars > 0) toast('SHAKE THE POLICE FIRST'); else openCustoms(); }
     else if (pin >= 0 && input.was('Enter')) { if (police.stars > 0) toast('SHAKE THE POLICE FIRST'); else openDialog(pin); }
   }
-  if (input.was('KeyR') && !races.state) { const [ix, iz] = world.nearestNode(p.x, p.z); const [sx, sz] = world.nodePos(ix, iz); p.place(sx - 4.5, sz, Math.PI); }
+  if (input.was('KeyR') && !races.state) snapToRoad();
   ['clear', 'rain', 'storm', 'snow'].forEach((w, i) => { if (input.was('Digit' + (i + 1))) { weather.set(w); toast(WEATHER[w].label); } });
 
   const raceTick = races.update(dt, game.phys, { grip: weather.grip }, raceHooks);
@@ -412,4 +417,4 @@ requestAnimationFrame(frame);
 
 // debug hook
 window.__game = { races, get menu() { return menu; }, persist, composer, bloom, traffic, police, game, world, weather, scene, camera, renderer, setCar, input, hud, start: () => { started = true; game.started = true; $('title').style.display = 'none'; } };
-void CELL; void SIZE; void MPH;
+void MPH;

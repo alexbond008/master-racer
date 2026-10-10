@@ -11,8 +11,8 @@ export const WEATHER = {
 const RAIN_N = 6000, SNOW_N = 4000, BOX = 70, TOP = 38;
 
 export class Weather {
-  constructor(scene, hemi, moon, groundMat, flashEl) {
-    this.scene = scene; this.hemi = hemi; this.moon = moon; this.groundMat = groundMat; this.flashEl = flashEl;
+  constructor(scene, hemi, moon, groundMats, flashEl) {
+    this.scene = scene; this.hemi = hemi; this.moon = moon; this.groundMats = Array.isArray(groundMats) ? groundMats : [groundMats]; this.flashEl = flashEl;
     this.name = 'clear'; this.k = { ...WEATHER.clear, grip: 1 };
     this.cur = {
       grip: 1, vis: 1, fog: WEATHER.clear.fog, hemi: 0.75, rain: 0, snow: 0, rough: 0.82, wet: 0,
@@ -70,9 +70,11 @@ export class Weather {
     this.sky.position.copy(cam.position);
 
     // road surface: wet = shiny + darker; snow = white
-    this.groundMat.roughness = c.rough;
-    this.groundMat.color.copy(c.tint).lerp(new THREE.Color('#e8eef5'), c.snowCover * 0.8).multiplyScalar(1 - c.wet * 0.25 * (1 - c.snowCover));
-    this.groundMat.metalness = Math.min(0.35, c.wet * 0.3);
+    for (const m of this.groundMats) {
+      m.roughness = Math.min(1, c.rough + (m.userData.rough0 ?? 0));
+      m.color.copy(c.tint).lerp(new THREE.Color('#e8eef5'), c.snowCover * 0.8).multiplyScalar(1 - c.wet * 0.25 * (1 - c.snowCover));
+      m.metalness = Math.min(0.35, c.wet * 0.3);
+    }
 
     // precipitation
     const camx = cam.position.x, camz = cam.position.z, camy = Math.max(0, cam.position.y - 6);

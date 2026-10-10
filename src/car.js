@@ -103,6 +103,26 @@ export class CarPhysics {
     if (collide) collide(this);
   }
 
+  // push car out of an oriented box {cx,cz,c,s,hx,hz} (local frame = rotateY(theta): c=cos, s=sin). Same response as resolveRect.
+  resolveOBB(o, rad) {
+    const dx = this.x - o.cx, dz = this.z - o.cz, lx = dx * o.c - dz * o.s, lz = dx * o.s + dz * o.c;
+    const qx = Math.max(-o.hx, Math.min(o.hx, lx)), qz = Math.max(-o.hz, Math.min(o.hz, lz));
+    let ex = lx - qx, ez = lz - qz, dist = Math.hypot(ex, ez), pen;
+    if (dist >= rad) return 0;
+    if (dist < 1e-4) { // centre inside the box: eject along the shortest axis
+      const px = o.hx - Math.abs(lx), pz = o.hz - Math.abs(lz);
+      if (px < pz) { ex = Math.sign(lx) || 1; ez = 0; pen = rad + px; } else { ex = 0; ez = Math.sign(lz) || 1; pen = rad + pz; }
+    } else { ex /= dist; ez /= dist; pen = rad - dist; }
+    const nx = ex * o.c + ez * o.s, nz = -ex * o.s + ez * o.c; // local -> world normal
+    this.x += nx * pen; this.z += nz * pen;
+    const vn = this.vx * nx + this.vz * nz;
+    if (vn < 0) {
+      this.vx -= 1.25 * vn * nx; this.vz -= 1.25 * vn * nz; this.vx *= 0.93; this.vz *= 0.93;
+      this.lastImpact = Math.max(this.lastImpact, -vn); this.yawRate *= 0.6; return -vn;
+    }
+    return 0;
+  }
+
   // push car out of AABB rect. returns impact speed along normal.
   resolveRect(rect, rad) {
     const cx = Math.max(rect.x0, Math.min(this.x, rect.x1));

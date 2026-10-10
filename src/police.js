@@ -1,21 +1,19 @@
 import * as THREE from 'three';
-import { Agent } from './traffic.js';
-import { steerToward, newInput, randomTurn } from './ai.js';
+import { Agent, placeNear } from './traffic.js';
+import { steerToward, newInput, randomExit } from './ai.js';
 import { buildCar, updateCarModel } from './carModel.js';
 import { NPC_CARS } from './cars.js';
-import { CELL, N } from './world.js';
 
 // GTA-style wanted system. Heat accumulates from offences; stars = thresholds crossed.
 export const HEAT_AT = [0, 8, 25, 55, 95, 150];
 const UNITS = [0, 2, 3, 4, 6, 8];
 const MIX = { 1: ['cruiser'], 2: ['cruiser'], 3: ['cruiser', 'interceptor'], 4: ['interceptor', 'suv', 'cruiser'], 5: ['interceptor', 'suv', 'interceptor', 'suv'] };
 const HP = { cruiser: 90, interceptor: 120, suv: 260 };
-const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const MPH = 2.23694;
 
 export class PoliceSystem {
   constructor(scene, world) {
-    this.scene = scene; this.world = world;
+    this.scene = scene; this.world = world; this.net = world.net;
     this.units = []; this.roadblocks = [];
     this.heat = 0; this.stars = 0;
     this.seen = false; this.unseenT = 0; this.bustedT = 0;
@@ -47,17 +45,13 @@ export class PoliceSystem {
   }
   makeUnit(type, role) {
     const base = NPC_CARS[type];
-    const u = new Agent(this.scene, type, { offset: role === 'patrol' ? 4.5 : 0, cruise: role === 'patrol' ? 11 : 60, kind: 'cop', hp: HP[type] });
+    const u = new Agent(this.scene, this.net, type, { laneMul: role === 'patrol' ? 1 : 0, cruise: role === 'patrol' ? 11 : 60, kind: 'cop', hp: HP[type] });
     u.def = { ...base, t60: base.t60 * 0.7 }; u.phys.setDef(u.def); u.type = type; u.role = role; u.mode = 'lane'; u.reverseT = 0; u.disabledT = 0; u.hpMax = HP[type];
     return u;
   }
   respawnPatrol(u, c, minD, maxD) {
-    for (let t = 0; t < 30; t++) {
-      const i = (Math.random() * (N + 1)) | 0, j = (Math.random() * (N + 1)) | 0, d = DIRS[(Math.random() * 4) | 0];
-      if (i + d[0] < 0 || i + d[0] > N || j + d[1] < 0 || j + d[1] > N) continue;
-      const dist = Math.hypot(i * CELL - c.x, j * CELL - c.z); if (dist < minD || dist > maxD) continue;
-      u.drv.offset = 4.5; u.cruise = 11; u.placeOnRoad(i, j, d, 30); u.hp = u.hpMax; u.role = 'patrol'; u.mode = 'lane'; return;
-    }
+    u.drv.laneMul = 1; u.cruise = 11;
+    if (placeNear(u, this.net, c, minD, maxD)) { u.hp = u.hpMax; u.role = 'patrol'; u.mode = 'lane'; }
   }
 
   // ---------- heat
@@ -78,8 +72,8 @@ export class PoliceSystem {
     const w = this.witnessed(player);
     this.addHeat((table[kind] || 3) * (w ? 1 : 0.25), kind, player);
   }
-  toPursuit(u) { u.role = 'pursuit'; u.drv.offset = 0; u.mode = 'direct'; u.cruise = 60; }
-  toPatrol(u) { u.role = 'patrol'; u.drv.offset = 4.5; u.cruise = 11; u.mode = 'lane'; u.drv.resync(u.phys); }
+  toPursuit(u) { u.role = 'pursuit'; u.drv.laneMul = 0; u.mode = 'direct'; u.cruise = 60; }
+  toPatrol(u) { u.role = 'patrol'; u.drv.laneMul = 1; u.cruise = 11; u.mode = 'lane'; u.drv.resync(u.phys); }
 
   damage(u, amount, player, byPlayer = false) {
     if (u.role === 'disabled') return;
@@ -92,41 +86,31 @@ export class PoliceSystem {
     const mix = MIX[this.stars]; const pur = this.units.filter(u => u.role === 'pursuit').length;
     const type = mix[pur % mix.length];
     const u = this.makeUnit(type, 'pursuit');
-    for (let t = 0; t < 40; t++) {
-      const i = (Math.random() * (N + 1)) | 0, j = (Math.random() * (N + 1)) | 0, d = DIRS[(Math.random() * 4) | 0];
-      if (i + d[0] < 0 || i + d[0] > N || j + d[1] < 0 || j + d[1] > N) continue;
-      const x = i * CELL, z = j * CELL, dist = Math.hypot(x - player.x, z - player.z);
-      if (dist < 110 || dist > 240) continue;
-      if (t < 30 && this.world.lineClear(x, z, player.x, player.z)) continue; // spawn out of sight first
-      u.placeOnRoad(i, j, d, 25); u.mode = 'lane'; u.drv.resync(u.phys);
-      this.units.push(u); return;
-    }
-    this.scene.remove(u.model); // no spot found; try again next tick
+    // prefer a spot out of the player's sight, 110-240 m away
+    if (placeNear(u, this.net, player, 90, 190, (x, z) => this.world.lineClear(x, z, player.x, player.z)) || placeNear(u, this.net, player, 90, 220)) {
+      u.mode = 'lane'; u.drv.resync(u.phys); this.units.push(u);
+    } else this.scene.remove(u.model);
   }
 
   spawnRoadblock(player) {
-    const sp = player.speed > 8 ? [player.vx, player.vz] : [Math.sin(player.th), Math.cos(player.th)];
-    const alongX = Math.abs(sp[0]) > Math.abs(sp[1]);
-    const sx = Math.sign(sp[0]) || 1, sz = Math.sign(sp[1]) || 1;
-    let x = player.x + (alongX ? sx * 240 : 0), z = player.z + (alongX ? 0 : sz * 240);
-    if (alongX) { x = (Math.floor(x / CELL) + 0.5) * CELL; z = Math.round(z / CELL) * CELL; }
-    else { z = (Math.floor(z / CELL) + 0.5) * CELL; x = Math.round(x / CELL) * CELL; }
-    if (x < 20 || z < 20 || x > N * CELL - 20 || z > N * CELL - 20) return;
-    const offs = this.stars >= 4 ? [-6.2, 0, 6.2] : [-4, 4];
-    const rb = { x, z, age: 0, cars: [] };
-    for (const o of offs) {
-      const cx = alongX ? x : x + o, cz = alongX ? z + o : z;
+    const sp = player.speed > 8 ? [player.vx, player.vz] : [Math.sin(player.th), Math.cos(player.th)], l = Math.hypot(sp[0], sp[1]) || 1;
+    const nr = this.net.nearest(player.x + sp[0] / l * 240, player.z + sp[1] / l * 240, 140, e => e.cls <= 2 && e.len > 40);
+    if (!nr) return;
+    const e = nr.e, p = this.net.pointAt(e, 1, Math.max(8, Math.min(e.len - 8, nr.s))), th = Math.atan2(p.tx, p.tz) + Math.PI / 2; // cars parked ACROSS the road
+    const n = Math.max(2, Math.ceil(e.width / 4.2)), spacing = e.width / n + 0.2, count = this.stars >= 4 ? n : n - 1;
+    const rb = { x: p.x, z: p.z, age: 0, cars: [] };
+    for (let i = 0; i < count; i++) {
+      const o = (i - (n - 1) / 2) * spacing, cx = p.x + p.tz * o, cz = p.z - p.tx * o;
       const m = buildCar(NPC_CARS.cruiser, { lite: true, police: true });
-      // cars park ACROSS the road: road along x => cars point along z (yaw 0); road along z => yaw 90deg
-      m.position.set(cx, 0, cz); m.rotation.y = alongX ? 0 : Math.PI / 2; this.scene.add(m);
-      const rect = alongX ? { x0: cx - 1.0, x1: cx + 1.0, z0: cz - 2.4, z1: cz + 2.4 } : { x0: cx - 2.4, x1: cx + 2.4, z0: cz - 1.0, z1: cz + 1.0 };
-      this.world.dynamicRects.push(rect);
-      rb.cars.push({ m, rect });
+      m.position.set(cx, 0, cz); m.rotation.y = th; this.scene.add(m);
+      const obb = { cx, cz, c: Math.cos(th), s: Math.sin(th), hx: 1.0, hz: 2.4 };
+      this.world.dynamicObbs.push(obb);
+      rb.cars.push({ m, obb });
     }
     this.roadblocks.push(rb);
   }
   clearRoadblock(rb) {
-    for (const c of rb.cars) { this.scene.remove(c.m); const i = this.world.dynamicRects.indexOf(c.rect); if (i >= 0) this.world.dynamicRects.splice(i, 1); }
+    for (const c of rb.cars) { this.scene.remove(c.m); const i = this.world.dynamicObbs.indexOf(c.obb); if (i >= 0) this.world.dynamicObbs.splice(i, 1); }
   }
 
   removeUnit(u) { this.scene.remove(u.model); u.model.userData.paint?.dispose(); const i = this.units.indexOf(u); if (i >= 0) this.units.splice(i, 1); }
@@ -138,16 +122,14 @@ export class PoliceSystem {
     return d < range && this.world.lineClear(u.phys.x, u.phys.z, player.x, player.z);
   }
 
+  // follow the A* route toward the player at every junction
   chooseToward(player) {
-    const pi = Math.round(player.x / CELL), pj = Math.round(player.z / CELL);
-    return (i, j, d, opts) => {
-      if (Math.random() < 0.06) return opts[(Math.random() * opts.length) | 0];
-      let best = opts[0], bs = Infinity;
-      for (const o of opts) {
-        const s = Math.abs(i + o[0] - pi) + Math.abs(j + o[1] - pj) + (o[0] === d[0] && o[1] === d[1] ? -0.4 : 0);
-        if (s < bs) { bs = s; best = o; }
-      }
-      return best;
+    const net = this.net, pn = net.nearestNode(player.x, player.z);
+    return (opts, node) => {
+      if (Math.random() < 0.04) return opts[(Math.random() * opts.length) | 0];
+      const r = net.route(node.id, pn);
+      if (r && r.length) { const m = opts.find(o => o.e === r[0].e && o.dir === r[0].dir); if (m) return m; }
+      return opts[(Math.random() * opts.length) | 0];
     };
   }
 
@@ -262,12 +244,12 @@ export class PoliceSystem {
     void onUnit;
   }
 
-  get evadeTime() { return 9 + this.stars * 3; }
+  get evadeTime() { return 14 + this.stars * 4; }
   get evadeProgress() { return this.stars ? Math.min(1, this.unseenT / this.evadeTime) : 0; }
 
   patrol(u) {
-    const [tx, tz] = u.drv.target(u.phys, randomTurn);
-    steerToward(u.phys, tx, tz, u.cruise, u.inp);
+    const [tx, tz, corner] = u.drv.target(u.phys, randomExit, 12 + u.phys.speed * 0.5);
+    steerToward(u.phys, tx, tz, u.cruise * [1.2, 1, 0.85, 0.65][u.drv.e.cls], u.inp, 1, corner);
   }
 
   pursuit(u, player, step, choose) {
@@ -279,7 +261,7 @@ export class PoliceSystem {
       if (u.reverseT <= 0) { u.mode = 'lane'; u.drv.resync(p); u.stuck = 0; }
       return;
     }
-    let tx, tz, vmax = u.def.vmax;
+    let tx, tz, corner = 0, vmax = u.def.vmax;
     if (los && d < 170) {
       u.mode = 'direct';
       const lead = Math.min(1, d / 60) * 0.7;
@@ -287,10 +269,10 @@ export class PoliceSystem {
       if (player.speed < 7 && d < 90) vmax = Math.max(5, Math.min(vmax, (d - 10) * 0.7 + 5));
     } else {
       if (u.mode !== 'lane') { u.drv.resync(p); u.mode = 'lane'; }
-      [tx, tz] = u.drv.target(p, choose);
-      vmax *= 0.82;
+      const t = u.drv.target(p, choose, 16 + p.speed * 0.5); tx = t[0]; tz = t[1]; corner = t[2] * 0.6;
+      vmax *= 1.05;
     }
-    steerToward(p, tx, tz, vmax, u.inp, 1.6);
+    steerToward(p, tx, tz, vmax, u.inp, 1.6, corner);
     if (Math.abs(p.fwdSpeed) < 1.2 && u.inp.throttle > 0.1) { u.stuck = (u.stuck || 0) + step; if (u.stuck > 1.4) { u.reverseT = 1.1; u.stuck = 0; } } else u.stuck = Math.max(0, (u.stuck || 0) - step);
   }
 

@@ -3,102 +3,87 @@ import { CarPhysics } from './car.js';
 import { NPC_CARS, CARS } from './cars.js';
 import { buildCar, updateCarModel } from './carModel.js';
 import { buildKenneyCar } from './models.js';
-import { CELL, N } from './world.js';
-import { LaneDriver, randomTurn, steerToward, newInput } from './ai.js';
+import { NetDriver, randomExit, steerToward, newInput } from './ai.js';
 
-const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const COLORS = ['#b22222', '#1f3d8a', '#d9d9d9', '#111418', '#e0c341', '#2f6f4f', '#8b8f98', '#6d2f8a', '#c96a1b'];
 const KINDS = [['k_sedan', 3], ['k_hatch', 3], ['k_sporty', 1], ['k_suv', 2], ['k_suvlux', 0.6], ['k_van', 1.6], ['k_delivery', 0.8], ['blackcab', 2.2], ['fiat126', 1], ['bus', 1.1]];
 export const KENNEY_FILES = ['sedan', 'hatchback-sports', 'sedan-sports', 'suv', 'suv-luxury', 'van', 'delivery'];
-const pickKind = () => { const tot = KINDS.reduce((a, k) => a + k[1], 0); let r = Math.random() * tot; for (const [id, w] of KINDS) { if ((r -= w) <= 0) return id; } return 'octavia'; };
+const pickKind = () => { const tot = KINDS.reduce((a, k) => a + k[1], 0); let r = Math.random() * tot; for (const [id, w] of KINDS) { if ((r -= w) <= 0) return id; } return 'k_sedan'; };
 const defFor = id => NPC_CARS[id] || CARS[id];
+const SPEED_BY_CLASS = [1.4, 1.2, 1.0, 0.8];
 
-// An AI-driven car: physics + model + lane driver (used for civilians and police patrols).
+// put an agent on a random road within [minD,maxD] of centre c (optionally rejecting spots for which reject(x,z) is true)
+export function placeNear(a, net, c, minD, maxD, reject) {
+  for (let tries = 0; tries < 40; tries++) {
+    const ang = Math.random() * Math.PI * 2, d = minD + Math.random() * (maxD - minD);
+    const nr = net.nearest(c.x + Math.cos(ang) * d, c.z + Math.sin(ang) * d, 70);
+    if (!nr || nr.e.len < 12) continue;
+    const dist = Math.hypot(nr.px - c.x, nr.pz - c.z); if (dist < minD || dist > maxD) continue;
+    if (reject && reject(nr.px, nr.pz)) continue;
+    a.placeOn(nr.e, nr.e.oneway || Math.random() < 0.5 ? 1 : -1, nr.s, nr);
+    return true;
+  }
+  return false;
+}
+
+// An AI-driven car: physics + model + road driver (civilians, patrols, pursuit units, race rivals).
 export class Agent {
-  constructor(scene, defId, opts = {}) {
-    this.def = defFor(defId);
+  constructor(scene, net, defId, opts = {}) {
+    this.net = net; this.def = defFor(defId);
     this.phys = new CarPhysics(this.def);
     this.model = this.def.kenney ? buildKenneyCar(this.def, { color: opts.color }) : buildCar(this.def, { lite: opts.lite ?? true, color: opts.color, police: this.def.police });
     scene.add(this.model);
-    this.drv = new LaneDriver(opts.offset ?? 4.5);
+    this.drv = new NetDriver(net, opts.laneMul ?? 1);
     this.inp = newInput();
     this.cruise = opts.cruise ?? 12;
     this.kind = opts.kind || 'civ';
     this.hp = opts.hp ?? 60;
-    this.stuck = 0;
-    this.acc = 0;
-    this.alive = true;
+    this.stuck = 0; this.acc = 0; this.alive = true;
   }
-  placeOnRoad(i, j, d, back = 20) {
-    const l = [d[1], -d[0]];
-    const x = i * CELL - d[0] * back + l[0] * this.drv.offset, z = j * CELL - d[1] * back + l[1] * this.drv.offset;
-    this.phys.place(x, z, Math.atan2(d[0], d[1]));
-    this.phys.vx = d[0] * this.cruise * 0.8; this.phys.vz = d[1] * this.cruise * 0.8;
-    this.drv.aim(i, j, d); this.inp = newInput(); this.stuck = 0;
+  // place on edge e travelling `dir`, at arc length s measured along the edge's forward direction
+  placeOn(e, dir, sFwd) {
+    const s = dir === 1 ? sFwd : e.len - sFwd, p = this.net.lanePoint(e, dir, Math.max(0, Math.min(e.len, s)), this.drv.off(e));
+    this.phys.place(p.x, p.z, Math.atan2(p.tx, p.tz));
+    this.phys.vx = p.tx * this.cruise * 0.8; this.phys.vz = p.tz * this.cruise * 0.8;
+    this.drv.aim(e, dir, s); this.inp = newInput(); this.stuck = 0;
   }
-  dispose(scene) { scene.remove(this.model); this.model.traverse(o => { if (o.material && o.material !== undefined && o.userData.paint !== o.material) { /* shared mats left alone */ } }); this.model.userData.paint?.dispose(); }
+  dispose(scene) { scene.remove(this.model); this.model.userData.paint?.dispose(); }
 }
 
 export class Traffic {
-  constructor(scene, world, count = 38) {
-    this.scene = scene; this.world = world; this.cars = [];
+  constructor(scene, world, count = 55) {
+    this.scene = scene; this.world = world; this.net = world.net; this.cars = [];
     for (let k = 0; k < count; k++) {
       const kind = pickKind();
-      const a = new Agent(scene, kind, { color: kind === 'bus' ? undefined : COLORS[(Math.random() * COLORS.length) | 0], cruise: kind === 'bus' ? 9 : 9 + Math.random() * 6, kind: 'civ' });
-      this.cars.push(a);
-      this.respawn(a, { x: 6 * CELL, z: 9 * CELL }, 40, 380);
+      const a = new Agent(scene, this.net, kind, { color: kind === 'bus' ? undefined : COLORS[(Math.random() * COLORS.length) | 0], cruise: kind === 'bus' ? 9 : 9 + Math.random() * 6, kind: 'civ' });
+      this.cars.push(a); this.respawn(a, world.spawn, 40, 420);
     }
   }
+  respawn(a, c, minD, maxD) { if (placeNear(a, this.net, c, minD, maxD)) { a.hp = 60; a.alive = true; a.model.visible = true; } }
 
-  respawn(a, c, minD, maxD) {
-    for (let tries = 0; tries < 30; tries++) {
-      const i = Math.floor(Math.random() * (N + 1)), j = Math.floor(Math.random() * (N + 1));
-      const d = DIRS[(Math.random() * 4) | 0];
-      if (i + d[0] < 0 || i + d[0] > N || j + d[1] < 0 || j + d[1] > N) continue;
-      const x = i * CELL, z = j * CELL, dist = Math.hypot(x - c.x, z - c.z);
-      if (dist < minD || dist > maxD) continue;
-      a.placeOnRoad(i, j, d, 25 + Math.random() * 20);
-      a.hp = 60; a.alive = true; a.model.visible = true;
-      return;
-    }
-  }
-
-  // aheadCars: other agents to avoid rear-ending
   drive(a, others, player) {
     const p = a.phys, drv = a.drv;
-    const [tx, tz] = drv.target(p, randomTurn);
-    let speed = a.cruise;
+    const [tx, tz, corner] = drv.target(p, randomExit, 12 + p.speed * 0.5);
+    let speed = a.cruise * SPEED_BY_CLASS[drv.e.cls];
     const sn = Math.sin(p.th), cs = Math.cos(p.th);
-    // look-ahead for a car in front (including the player) -> slow down / stop
-    const check = (q) => {
-      const dx = q.x - p.x, dz = q.z - p.z, fwd = dx * sn + dz * cs, lat = dx * cs - dz * sn;
-      if (fwd > 0 && fwd < 16 && Math.abs(lat) < 2.6) speed = Math.min(speed, Math.max(0, (fwd - 6) * 1.1));
-    };
+    const check = q => { const dx = q.x - p.x, dz = q.z - p.z, fwd = dx * sn + dz * cs, lat = dx * cs - dz * sn; if (fwd > 0 && fwd < 16 && Math.abs(lat) < 2.6) speed = Math.min(speed, Math.max(0, (fwd - 6) * 1.1)); };
     for (const o of others) if (o !== a) check(o.phys);
     check(player);
-    steerToward(p, tx, tz, speed, a.inp);
+    steerToward(p, tx, tz, speed, a.inp, 1, corner);
   }
 
-  update(dt, player, grip, world, camPos) {
+  update(dt, player, grip, world) {
     const STEP = 1 / 60;
     for (const a of this.cars) {
-      a.acc += dt;
-      let n = 0;
-      while (a.acc >= STEP && n++ < 4) {
-        this.drive(a, this.cars, player);
-        a.phys.step(STEP, a.inp, grip, world.collide);
-        a.acc -= STEP;
-      }
+      a.acc += dt; let n = 0;
+      while (a.acc >= STEP && n++ < 4) { this.drive(a, this.cars, player); a.phys.step(STEP, a.inp, grip, world.collide); a.acc -= STEP; }
       if (a.acc > STEP * 4) a.acc = 0;
-      // stuck / far recycling
       if (Math.abs(a.phys.fwdSpeed) < 0.6 && a.inp.throttle > 0.1) a.stuck += dt; else a.stuck = Math.max(0, a.stuck - dt);
       const d = Math.hypot(a.phys.x - player.x, a.phys.z - player.z);
-      const behindCam = camPos ? ((a.phys.x - camPos.x) * Math.sin(player.th) + (a.phys.z - camPos.z) * Math.cos(player.th)) < 0 : true;
-      if (d > 480 || (a.stuck > 6 && (d > 70))) this.respawn(a, player, 120, 400);
+      if (d > 520 || (a.stuck > 6 && d > 70)) this.respawn(a, player, 120, 420);
       a.model.position.set(a.phys.x, 0, a.phys.z); a.model.rotation.y = a.phys.th;
-      a.model.visible = d < 520;
+      a.model.visible = d < 560;
       if (a.model.visible) updateCarModel(a.model, a.phys, dt);
-      void behindCam;
     }
   }
 }

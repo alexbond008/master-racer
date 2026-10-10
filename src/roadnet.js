@@ -6,7 +6,7 @@ const CELL = 64;
 
 export class RoadNet {
   constructor(data) {
-    this.nodes = data.nodes.map(([x, z]) => ({ x, z, out: [] }));
+    this.nodes = data.nodes.map(([x, z], id) => ({ id, x, z, out: [] }));
     this.edges = data.edges.map(([a, b, cls, flags, name, flat], id) => {
       const pts = [], cum = [0];
       for (let i = 0; i < flat.length; i += 2) pts.push([flat[i], flat[i + 1]]);
@@ -58,13 +58,14 @@ export class RoadNet {
   }
 
   // nearest road centreline within maxD: { e, s (forward arc-length along pts), d, tx, tz, px, pz } or null
-  nearest(x, z, maxD = 40) {
+  nearest(x, z, maxD = 40, filter = null) {
     let best = null, bd = maxD;
     const r = Math.ceil(maxD / CELL), cx = Math.floor(x / CELL), cz = Math.floor(z / CELL);
     for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
       const l = this.grid.get((cx + dx) + ',' + (cz + dz)); if (!l) continue;
       for (let k = 0; k < l.length; k += 2) {
         const e = this.edges[l[k]], i = l[k + 1];
+        if (filter && !filter(e)) continue;
         const [x0, z0] = e.pts[i], [x1, z1] = e.pts[i + 1], vx = x1 - x0, vz = z1 - z0, ll = vx * vx + vz * vz || 1;
         let t = ((x - x0) * vx + (z - z0) * vz) / ll; t = Math.max(0, Math.min(1, t));
         const px = x0 + vx * t, pz = z0 + vz * t, d = Math.hypot(x - px, z - pz);
