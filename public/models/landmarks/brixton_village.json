@@ -1,0 +1,17 @@
+{
+ "footprint": [
+  104.0,
+  62.1
+ ],
+ "height": 11.6,
+ "notes": "Brixton Village / Granville Arcade: OSM-footprint market block 8 m to parapet, ~125 lit 3.2 m shopfront bays with coloured fascia boards, 3 arched/gabled glazed entrances with big signs ('GRANVILLE ARCADE'/'BRIXTON VILLAGE', bunting), glazed ridge lanterns on the roof, plant. Origin = footprint centre, front -Y.",
+ "bbox_x": [
+  -47.53,
+  57.66
+ ],
+ "bbox_y": [
+  -21.49,
+  41.76
+ ],
+ "triangles": 12482
+}

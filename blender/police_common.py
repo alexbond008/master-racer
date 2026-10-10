@@ -12,6 +12,9 @@ OUT_DIR = HOME + '/public/models/cars'
 PREV_DIR = HOME + '/blender/previews'
 
 
+FLAT_GROUPS = ('plates', 'lights', 'chrome', 'strobes')
+
+
 def lerp(a, b, t):
     return a + (b - a) * t
 
@@ -303,7 +306,10 @@ class Car:
         bm.free()
 
     def cast(self, origin, direction):
-        loc, nor, idx, dist = self.surf.ray_cast(Vector(origin), Vector(direction).normalized(), 50.0)
+        d = Vector(direction).normalized()
+        loc, nor, idx, dist = self.surf.ray_cast(Vector(origin), d, 50.0)
+        if loc is not None and nor.dot(d) > 0:
+            nor = -nor        # normals of sliver triangles can be flipped: always face the ray origin
         return loc, nor
 
     def ok_pts(self, mapper, direction, pts, nmin=0.7, axis=None, sign=1):
@@ -321,19 +327,33 @@ class Car:
     def patch(self, gname, mat, outline, mapper, direction, offset=0.004, maxlen=0.06, depth=0.0, reject_bad=False):
         d = Vector(direction).normalized()
         b2 = bmesh.new()
-        vs = [b2.verts.new((a, b, 0)) for a, b in outline]
-        try:
-            f = b2.faces.new(vs)
-        except ValueError:
-            b2.free()
-            return
-        bmesh.ops.triangulate(b2, faces=[f])
-        for _ in range(7):
-            long = [e for e in b2.edges if e.calc_length() > maxlen]
-            if not long:
-                break
-            bmesh.ops.subdivide_edges(b2, edges=long, cuts=1, use_grid_fill=False)
+        is_rect = len(outline) == 4 and abs(outline[0][1] - outline[1][1]) < 1e-9 and abs(outline[1][0] - outline[2][0]) < 1e-9
+        if is_rect:
+            a0, a1 = outline[0][0], outline[1][0]
+            bb0, bb1 = outline[0][1], outline[2][1]
+            nx = max(1, math.ceil(abs(a1 - a0) / maxlen))
+            ny = max(1, math.ceil(abs(bb1 - bb0) / maxlen))
+            grid = [[b2.verts.new((lerp(a0, a1, i / nx), lerp(bb0, bb1, j / ny), 0)) for j in range(ny + 1)] for i in range(nx + 1)]
+            for i in range(nx):
+                for j in range(ny):
+                    b2.faces.new((grid[i][j], grid[i + 1][j], grid[i + 1][j + 1], grid[i][j + 1]))
             bmesh.ops.triangulate(b2, faces=b2.faces[:])
+        else:
+            cx = sum(p[0] for p in outline) / len(outline)
+            cy = sum(p[1] for p in outline) / len(outline)
+            vc = b2.verts.new((cx, cy, 0))
+            vs = [b2.verts.new((a, b, 0)) for a, b in outline]
+            for i in range(len(vs)):
+                try:
+                    b2.faces.new((vc, vs[i], vs[(i + 1) % len(vs)]))
+                except ValueError:
+                    pass
+            for _ in range(7):
+                long = [e for e in b2.edges if e.calc_length() > maxlen]
+                if not long:
+                    break
+                bmesh.ops.subdivide_edges(b2, edges=long, cuts=1, use_grid_fill=False)
+                bmesh.ops.triangulate(b2, faces=b2.faces[:])
         hitn = {}
         miss = []
         for v in b2.verts:
@@ -355,11 +375,14 @@ class Car:
         tgt, _ = self.group(gname)
         mi = self.mat_index(gname, mat)
         mapv = {}
+        tot = 0.0
         for f in b2.faces:
             ns = Vector()
             for v in f.verts:
                 ns += hitn.get(v.index, Vector())
-            flip = f.normal.dot(ns) < 0
+            tot += f.calc_area() * f.normal.dot(ns)
+        flip = tot < 0
+        for f in b2.faces:
             nv = []
             for v in f.verts:
                 if v.index not in mapv:
@@ -560,7 +583,7 @@ class Car:
         cx = sum(p[0] for p in outline) / len(outline)
         cy = sum(p[1] for p in outline) / len(outline)
         o2 = [(cx + (a - cx) * grow, cy + (b - cy) * grow) for a, b in outline]
-        self.patch('trim', 'Trim', o2, mapper, direction, offset=offset, maxlen=0.07)
+        self.patch('trim', 'Trim', o2, mapper, direction, offset=offset, maxlen=0.03)
 
     def side_band(self, y0, y1, z0, rowh, rows=2, tilelen=0.24, skip=None):
         n = max(1, round((y1 - y0) / tilelen))
@@ -666,7 +689,7 @@ class Car:
                 if len(e.link_faces) == 2 and e.calc_face_angle(0) > math.radians(50):
                     e.smooth = False
             for f in bm.faces:
-                f.smooth = True
+                f.smooth = name not in FLAT_GROUPS
             mesh = bpy.data.meshes.new(name)
             bm.to_mesh(mesh)
             for mn in ml:
@@ -743,6 +766,8 @@ class Car:
                                            ('fill', 'SUN', (-5, 5, 6), 1.2, (math.radians(60), 0, math.radians(-150)))):
             ld = bpy.data.lights.new(nm, kind)
             ld.energy = energy
+            ld.use_shadow = nm != 'fill'
+            ld.angle = math.radians(1.0)
             lo = bpy.data.objects.new(nm, ld)
             lo.location = loc
             lo.rotation_euler = rot
@@ -758,16 +783,24 @@ class Car:
             'rear': (0.0, L * 2.0, 1.2),
             'lightbar': (L * 0.5, L * 0.55, 2.7),
             'frontlow': (-L * 0.45, -L * 0.75, 0.6),
+            'closefront': (0.9, mn.y - 2.0, 1.0),
+            'closerear': (-0.9, mx.y + 2.0, 1.1),
         }
         for nm, pos in cams.items():
             cd = bpy.data.cameras.new(nm)
             cd.lens = 55 if nm not in ('side',) else 90
             if nm in ('lightbar',):
                 cd.lens = 70
+            if nm.startswith('close'):
+                cd.lens = 70
             co = bpy.data.objects.new(nm, cd)
             co.location = pos
             bpy.context.collection.objects.link(co)
             tgt = center if nm != 'lightbar' else Vector((0, 0.0, mx.z - 0.3))
+            if nm == 'closefront':
+                tgt = Vector((0, mn.y, 0.55))
+            if nm == 'closerear':
+                tgt = Vector((0, mx.y, 0.7))
             d = tgt - Vector(pos)
             co.rotation_euler = d.to_track_quat('-Z', 'Y').to_euler()
             sc.camera = co

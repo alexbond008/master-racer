@@ -1,0 +1,19 @@
+{
+ "footprint": [
+  39.6,
+  37.2
+ ],
+ "height": 40.8,
+ "notes": "St Leonard's Church, Streatham. Flint-and-stucco west tower with clock and slate octagonal spire (~39 m), stucco nave with pointed windows, stone chancel + two gabled stone chapels (three-gable east end), churchyard tombs. Tower is at the NW end in the game frame.",
+ "triangles": 3925,
+ "bbox_min": [
+  -27.63,
+  -13.36,
+  0.0
+ ],
+ "bbox_max": [
+  12.44,
+  24.63,
+  40.8
+ ]
+}

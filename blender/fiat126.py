@@ -130,7 +130,7 @@ for sx in (-0.30, 0.30):
 car.box('interior', 'Interior', (0, 0.80, 0.52), (1.0, 0.40, 0.14), 0.03)
 car.box('interior', 'Interior', (0, 0.93, 0.80), (1.0, 0.10, 0.45), 0.03)
 car.box('interior', 'Interior', (0, -0.42, 0.78), (1.15, 0.22, 0.14), 0.03)
-car.box('interior', 'Interior', (-0.30, -0.33, 0.84), (0.34, 0.02, 0.34), 0.01, rot=Matrix.Rotation(0.5, 4, 'X'))
+car.box('interior', 'Interior', (-0.30, -0.22, 0.80), (0.30, 0.02, 0.30), 0.01, rot=Matrix.Rotation(0.5, 4, 'X'))
 
 # ---------------------------------------------------------------- wheels
 objs_hub = {}

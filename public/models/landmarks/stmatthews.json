@@ -1,0 +1,17 @@
+{
+ "footprint": [
+  24,
+  34
+ ],
+ "height": 39.85,
+ "notes": "St Matthew's Church Brixton: giant Greek Doric hexastyle portico facing -Y (6 columns, triglyph frieze, pediment, 5 steps), pale stuccoed nave with slate gable roof, rear stepped tower (clock stage, open Doric bell stage, octagonal Tower-of-the-Winds lantern, crown+cross) ~38.5 m, railings on the street + side boundary. Origin = footprint centre.",
+ "bbox_x": [
+  -11.98,
+  11.98
+ ],
+ "bbox_y": [
+  -17.25,
+  17.45
+ ],
+ "triangles": 9216
+}

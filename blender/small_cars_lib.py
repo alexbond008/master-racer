@@ -616,9 +616,10 @@ def export_glb(path):
 
 def tri_count(objs):
     n = 0
-    for ob in objs.values():
+    for name, ob in objs.items():
         me = ob.data
         me.calc_loop_triangles()
+        print('  tris %-10s %d' % (name, len(me.loop_triangles)))
         n += len(me.loop_triangles)
     return n
 

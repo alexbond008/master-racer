@@ -54,27 +54,27 @@ car.mirror(1.93, 0.785, 0.95)
 hl = [(0.27, 0.58), (0.43, 0.565), (0.58, 0.585), (0.665, 0.625), (0.67, 0.685), (0.60, 0.73), (0.49, 0.74), (0.37, 0.715)]
 for pts in (hl, mirror_x(hl)):
     car.surround(chaikin(pts, 1), F, FD, 1.14)
-    car.patch('lights', 'HeadLight', chaikin(pts, 1), F, FD, offset=0.005, maxlen=0.03)
-car.patch('trim', 'Trim', rrect(-0.24, 0.24, 0.56, 0.685), F, FD, offset=0.004)
-car.patch('chrome', 'Chrome', rect(-0.24, 0.24, 0.62, 0.628), F, FD, offset=0.006)
-car.patch('chrome', 'Chrome', rrect(-0.035, 0.035, 0.585, 0.65, 1), F, FD, offset=0.007)   # badge
+    car.patch('lights', 'HeadLight', chaikin(pts, 1), F, FD, offset=0.005, maxlen=0.022)
+car.patch('trim', 'Trim', rrect(-0.24, 0.24, 0.56, 0.685), F, FD, offset=0.004, maxlen=0.05)
+car.patch('chrome', 'Chrome', rect(-0.24, 0.24, 0.62, 0.628), F, FD, offset=0.006, maxlen=0.03)
+car.patch('chrome', 'Chrome', rrect(-0.035, 0.035, 0.585, 0.65, 1), F, FD, offset=0.007, maxlen=0.03)   # badge
 for x0, x1 in ((0.30, 0.64), (-0.64, -0.30)):
-    car.patch('trim', 'Trim', rrect(x0, x1, 0.375, 0.485), F, FD, offset=0.004)
-car.patch('trim', 'Trim', rect(-0.30, 0.30, 0.40, 0.50), F, FD, offset=0.004)
-car.patch('plates', 'Plate', rrect(-0.255, 0.255, 0.395, 0.505, 1), F, FD, offset=0.009)
+    car.patch('trim', 'Trim', rrect(x0, x1, 0.375, 0.485), F, FD, offset=0.004, maxlen=0.05)
+car.patch('trim', 'Trim', rect(-0.30, 0.30, 0.40, 0.50), F, FD, offset=0.004, maxlen=0.05)
+car.patch('plates', 'Plate', rrect(-0.255, 0.255, 0.395, 0.505, 1), F, FD, offset=0.011, maxlen=0.035)
 for x in (0.13, -0.13):
-    car.patch('strobes', 'Light_Blue', rect(x - 0.07, x + 0.07, 0.585, 0.612), F, FD, offset=0.009)
+    car.patch('strobes', 'Light_Blue', rect(x - 0.07, x + 0.07, 0.585, 0.612), F, FD, offset=0.011, maxlen=0.022)
 for x in (0.62, -0.62):
-    car.patch('lights', 'HeadLight', rrect(x - 0.045, x + 0.045, 0.415, 0.465, 1), F, FD, offset=0.005)
+    car.patch('lights', 'HeadLight', rrect(x - 0.045, x + 0.045, 0.415, 0.465, 1), F, FD, offset=0.005, maxlen=0.022)
 
 # rear: tail lights, plate, bumper strip
 tl = [(0.42, 0.64), (0.70, 0.64), (0.765, 0.70), (0.765, 0.90), (0.70, 0.93), (0.44, 0.88)]
 for pts in (tl, mirror_x(tl)):
     car.surround(chaikin(pts, 1), Rr, RD, 1.12)
-    car.patch('lights', 'TailLight', chaikin(pts, 1), Rr, RD, offset=0.005, maxlen=0.03)
-car.patch('plates', 'Plate', rrect(-0.255, 0.255, 0.44, 0.55, 1), Rr, RD, offset=0.009)
-car.patch('trim', 'Trim', rect(-0.72, 0.72, 0.335, 0.375), Rr, RD, offset=0.004)
-car.patch('trim', 'Trim', rrect(-0.1, 0.1, 0.80, 0.82, 1), Rr, RD, offset=0.004)
+    car.patch('lights', 'TailLight', chaikin(pts, 1), Rr, RD, offset=0.005, maxlen=0.022)
+car.patch('plates', 'Plate', rrect(-0.255, 0.255, 0.44, 0.55, 1), Rr, RD, offset=0.011, maxlen=0.035)
+car.patch('trim', 'Trim', rect(-0.72, 0.72, 0.335, 0.375), Rr, RD, offset=0.004, maxlen=0.05)
+car.patch('trim', 'Trim', rrect(-0.1, 0.1, 0.80, 0.82, 1), Rr, RD, offset=0.004, maxlen=0.05)
 for x in (0.42, -0.42):
     car.patch('strobes', 'Light_Blue', rect(x - 0.09, x + 0.09, 3.39, 3.44), T, TD, offset=0.009)
 

@@ -392,15 +392,22 @@ def render_previews(key, glb, cams=None, size=(1100, 760)):
     co = bpy.data.objects.new('cam', cd)
     sc.collection.objects.link(co)
     sc.camera = co
-    for name, (dirv, zoom) in views.items():
-        target = Vector((c.x, c.y, H * 0.4))
+    for name, spec in views.items():
+        dirv, zoom = spec[0], spec[1]
+        target = Vector(spec[2]) if len(spec) > 2 else Vector((c.x, c.y, H * 0.4))
         d = dirv.normalized()
         # fit: bounding-sphere radius
-        rad = max(((mx - mn).length) / 2, 8)
+        rad = max(((mx - mn).length) / 2, 8) if len(spec) <= 2 else spec[3]
         fov = 2 * math.atan(18 / cd.lens)
-        dist = rad / math.sin(fov / 2) * 0.62 / zoom
+        dist = rad / math.sin(fov / 2) * 1.0 / zoom
         co.location = target + d * dist
         co.rotation_euler = (target - co.location).to_track_quat('-Z', 'Y').to_euler()
         sc.render.filepath = os.path.join(PREV_DIR, f'{key}_{name}.png')
         bpy.ops.render.render(write_still=True)
     print(f'[{key}] previews -> {PREV_DIR}/{key}_*.png')
+
+
+def wpt(theta, x, y, z=0.0):
+    """local-frame point -> world (Blender) point after the build rotation."""
+    c, s = math.cos(math.radians(theta)), math.sin(math.radians(theta))
+    return (x * c - y * s, x * s + y * c, z)

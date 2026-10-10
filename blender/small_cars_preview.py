@@ -98,17 +98,19 @@ poses = {
     'side': (Vector((1.0, 0.0, 0.08)), ctr),
     'front': (Vector((0.0, -1.0, 0.12)), ctr),
     'rear': (Vector((0.0, 1.0, 0.12)), ctr),
-    'top': (Vector((0.12, -0.25, 1.0)), ctr),
+    'top': (Vector((0.05, -0.12, 1.0)), ctr),
 }
 for v in views:
     d, tgt = poses[v]
-    dist = D * (1.25 if v in ('side',) else 1.0)
+    dist = D * (1.55 if v in ('side',) else 1.1 if v in ('front','rear') else 1.0)
     cam.location = tgt + d.normalized() * dist
     direction = tgt - cam.location
     cam.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
     cam_d.lens = 70 if v in ('side', 'top', 'front', 'rear') else 50
-    if v in ('side', 'top'):
-        cam.location = tgt + d.normalized() * dist * 1.25
+    if v == 'top':
+        cam_d.lens = 50
+        cam.location = tgt + d.normalized() * L * 2.1
+        cam.rotation_euler = (tgt - cam.location).to_track_quat('-Z', 'Y').to_euler()
     sc.render.filepath = os.path.join(ROOT, 'blender/previews/%s_%s.png' % (cid, v))
     bpy.ops.render.render(write_still=True)
     print('rendered', v)

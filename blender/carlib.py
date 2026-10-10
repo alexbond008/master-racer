@@ -45,10 +45,18 @@ def make_materials(paint, rim='#bfc3cb', rim_rough=0.3, rim_metal=0.9):
     M['HeadLight'] = _mk('HeadLight', '#fff1d0', 0.1, 0.0, '#fff1d0', 4.0)
     M['TailLight'] = _mk('TailLight', '#ff1a10', 0.2, 0.0, '#ff1208', 3.0)
     M['Plate'] = _mk('Plate', '#ece6c4', 0.5, 0.0)
+    gc = _mk('GlassClear', '#0a1218', 0.05, 0.0)
+    gc.node_tree.nodes['Principled BSDF'].inputs['Alpha'].default_value = 0.3
+    for attr, val in (('blend_method', 'BLEND'), ('surface_render_method', 'BLENDED')):
+        try:
+            setattr(gc, attr, val)
+        except Exception as e:
+            pass
+    M['GlassClear'] = gc
     return M
 
 
-MATGROUP = {'Glass': 'glass', 'Trim': 'trim', 'Chrome': 'trim', 'Plate': 'trim',
+MATGROUP = {'Glass': 'glass', 'GlassClear': 'glass', 'Trim': 'trim', 'Chrome': 'trim', 'Plate': 'trim',
             'HeadLight': 'lights', 'TailLight': 'lights', 'Interior': 'interior',
             'Tyre': 'trim', 'Rim': 'trim'}
 
@@ -644,6 +652,8 @@ def verify_and_render(car_id, glb, focus=None, cam_dist=1.0):
     for o in bpy.context.scene.objects:
         if o.type == 'MESH' and o.name.startswith('wheel'):
             print(o.name, 'origin', tuple(round(x, 3) for x in o.matrix_world.translation))
+    for mt in bpy.data.materials:
+        print('MAT', mt.name, getattr(mt, 'blend_method', None), getattr(mt, 'surface_render_method', None))
     sc = bpy.context.scene
     # lights & ground
     w = bpy.data.worlds.new('w')
