@@ -15,10 +15,10 @@ ARCH_R = 0.405
 # --------------------------------------------------------------- body loft
 # y, hw, zb, zc, zt, nu, nl, k, kb
 ST = [
-    (-2.250, 0.70, 0.13, 0.29, 0.405, 4.0, 4.0, 0.95, 0.95),
-    (-2.225, 0.84, 0.095, 0.31, 0.43, 4.5, 5.0, 0.95, 0.95),
-    (-2.120, 0.925, 0.09, 0.37, 0.465, 5.0, 6.0, 0.95, 0.95),
-    (-1.900, 0.965, 0.10, 0.46, 0.56, 5.0, 6.0, 0.95, 0.94),
+    (-2.250, 0.62, 0.12, 0.25, 0.360, 7.0, 5.0, 0.96, 0.96),
+    (-2.225, 0.80, 0.09, 0.27, 0.385, 8.0, 6.0, 0.96, 0.96),
+    (-2.120, 0.930, 0.09, 0.34, 0.435, 8.0, 7.0, 0.96, 0.95),
+    (-1.900, 0.972, 0.10, 0.46, 0.540, 7.0, 7.0, 0.95, 0.94),
     (-1.350, 1.005, 0.12, 0.66, 0.815, 5.0, 6.0, 0.94, 0.94),
     (-0.950, 0.975, 0.13, 0.72, 0.845, 5.0, 6.0, 0.93, 0.94),
     (-0.450, 0.968, 0.13, 0.76, 0.900, 5.0, 6.0, 0.90, 0.94),
@@ -35,12 +35,19 @@ ST = [
 ]
 
 body, at = loft_body('body', ST, 32, 0.055, lambda *a: 'Paint', 'body', extra_ys=(YF, YR))
+surf0 = Surf(body)
+WINS = [
+    ('S', [(-0.36, 0.90), (0.62, 0.985), (0.44, 1.06), (0.10, 1.06)], 16, 4),
+    ('F', [(-0.64, 0.915), (0.64, 0.915), (0.50, 1.085), (-0.50, 1.085)], 20, 9),
+]
 
 # --------------------------------------------------------------- wheel arches (boolean)
 cut = Mesh('cutter')
 for sx in (1, -1):
     for y in (YF, YR):
         add_cyl(cut, (sx * 0.46, y, WR), (sx * 1.3, y, WR), ARCH_R, ARCH_R, 40, 'Trim')
+for mode_, cc_, nu_, nv_ in WINS:
+    win_cut(cut, surf0, mode_, cc_)
 cut.fix()
 bo = body.to_obj(M, 'body_tmp')
 co = cut.to_obj(M, 'cutter')
@@ -70,10 +77,12 @@ body_extra = part('body_extra', 'body')
 spoiler = part('spoiler')
 mirrors = part('mirrors')
 
-# --------------------------------------------------------------- glass
-sym(glass, surf, 'S', quad_grid([(-0.36, 0.90), (0.62, 0.985), (0.44, 1.06), (0.10, 1.06)], 16, 4), 'Glass', lift=0.005, sdepth=0.02)
-patch(glass, surf, 'F', quad_grid([(-0.64, 0.915), (0.64, 0.915), (0.50, 1.085), (-0.50, 1.085)], 20, 9), 'Glass', lift=0.005, sdepth=0.02)
-patch(glass, surf, 'R', quad_grid([(-0.40, 1.025), (0.40, 1.025), (0.34, 1.10), (-0.34, 1.10)], 10, 3), 'Glass', lift=0.005, sdepth=0.02) if False else None
+# --------------------------------------------------------------- glass (semi transparent)
+for mode_, cc_, nu_, nv_ in WINS:
+    if mode_ == 'S':
+        sym(glass, surf0, 'S', quad_grid(cc_, nu_, nv_), 'Glass', lift=0.004, sdepth=0.02)
+    else:
+        patch(glass, surf0, mode_, quad_grid(cc_, nu_, nv_), 'Glass', lift=0.004, sdepth=0.02)
 
 # --------------------------------------------------------------- panel lines
 for ribs in (
@@ -119,14 +128,16 @@ for k in range(4):
 
 # --------------------------------------------------------------- front fascia
 for sx in (1, -1):
-    # angular headlight cluster: dark bezel, slim lens, Y-shaped DRL (placed from above on the nose)
-    patch(trim, surf, 'T', quad_grid([(sx * 0.30, -2.19), (sx * 0.90, -2.10), (sx * 0.90, -1.90), (sx * 0.30, -2.00)], 12, 4), 'Trim', lift=0.004)
-    patch(lights, surf, 'T', quad_grid([(sx * 0.52, -2.14), (sx * 0.86, -2.085), (sx * 0.86, -2.03), (sx * 0.52, -2.075)], 10, 2), 'HeadLight', lift=0.008)
-    stem = [(sx * 0.33, -2.15), (sx * 0.50, -2.115)]
-    armA = [(sx * 0.50, -2.115), (sx * 0.85, -2.02)]
-    armB = [(sx * 0.50, -2.115), (sx * 0.84, -1.95)] if False else [(sx * 0.50, -2.115), (sx * 0.80, -1.96)]
+    # angular headlight cluster: dark bezel + clear Y-shaped DRL (placed from above on the wedge nose)
+    patch(trim, surf, 'T', quad_grid([(sx * 0.30, -2.19), (sx * 0.90, -2.11), (sx * 0.90, -1.90), (sx * 0.30, -1.98)], 12, 4), 'Trim', lift=0.004)
+    stem = [(sx * 0.35, -2.03), (sx * 0.56, -2.06)]
+    armA = [(sx * 0.56, -2.06), (sx * 0.87, -2.12)]
+    armB = [(sx * 0.56, -2.06), (sx * 0.84, -1.95)]
     for pts in (stem, armA, armB):
-        patch(lights, surf, 'T', ribbon_grid(pts, 0.017, 0.03), 'HeadLight', lift=0.008, skirt=False)
+        patch(lights, surf, 'T', ribbon_grid(pts, 0.032, 0.03), 'HeadLight', lift=0.009, skirt=True)
+    patch(lights, surf, 'T', ellipse_grid(sx * 0.42, -2.045, 0.035, 0.030, 2, 12), 'HeadLight', lift=0.010)
+    # leading-edge crease of the wedge
+    patch(trim, surf, 'T', ribbon_grid([(sx * 0.03, -2.243), (sx * 0.45, -2.215), (sx * 0.86, -2.13)], 0.006, 0.05), 'Trim', lift=0.002, skirt=False)
     # lower side intakes (angular)
     c = [(sx * 0.58, 0.15), (sx * 0.82, 0.165), (sx * 0.82, 0.31), (sx * 0.62, 0.29)]
     if sx < 0:
@@ -196,6 +207,12 @@ for sx in (1, -1):
                      (sx * 0.46 + 0.018, py, pz + 0.012), (sx * 0.46 - 0.018, py, pz + 0.012)])
     add_loft_sections(spoiler, secs, 'Paint')
 spoiler.fix()
+
+# --------------------------------------------------------------- interior (LHD: driver on +X)
+P['shell'] = interior_shell(at, -0.46, 0.95, 0.11, 16, 0.12, 0.045)
+cab = part('interior')
+cockpit(cab, 1, 0.82, -0.44, -0.14, 0.80, 0.18, 0.28, (-0.06, 0.70), 0.5)
+add_box(cab, (0, 0.90, 0.55), (1.60, 0.06, 0.70), 'Interior')       # engine bulkhead
 
 # --------------------------------------------------------------- wheels (3-piece, big bright lip, rivets)
 def tp_spokes(rin, xf):

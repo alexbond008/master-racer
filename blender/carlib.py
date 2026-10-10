@@ -687,19 +687,19 @@ def bucket_seat(m, cx, cy, zf, bare=False, w=0.46):
     """Bucket seat facing -Y. cy = cushion centre, zf = floor height under it."""
     tilt = rotx(-0.22)
     add_box(m, (cx, cy, zf + 0.09), (w, 0.50, 0.14), 'Interior')
-    add_box(m, (cx, cy + 0.27, zf + 0.40), (w, 0.10, 0.52), 'Interior', tilt)
-    add_box(m, (cx, cy + 0.325, zf + 0.76), (0.27, 0.09, 0.17), 'Interior', tilt)
+    add_box(m, (cx, cy + 0.26, zf + 0.34), (w, 0.10, 0.46), 'Interior', tilt)
+    add_box(m, (cx, cy + 0.305, zf + 0.655), (0.27, 0.09, 0.15), 'Interior', tilt)
     for s in (1, -1):
-        add_box(m, (cx + s * (w / 2 - 0.02), cy + 0.22, zf + 0.34), (0.07, 0.17, 0.40), 'Interior', tilt)
+        add_box(m, (cx + s * (w / 2 - 0.02), cy + 0.21, zf + 0.30), (0.07, 0.17, 0.36), 'Interior', tilt)
         add_box(m, (cx + s * (w / 2 - 0.02), cy - 0.08, zf + 0.15), (0.07, 0.30, 0.10), 'Interior')
 
 
 def driver(m, cx, cy, zf, wx, wy, wz):
     """Low-poly driver sitting in a seat (cx,cy,zf as bucket_seat), hands on the wheel at (wx,wy,wz)."""
     hip = Vector((cx, cy + 0.10, zf + 0.22))
-    sh = Vector((cx, cy + 0.26, zf + 0.66))
-    add_box(m, (cx, cy + 0.20, zf + 0.46), (0.36, 0.20, 0.42), 'Driver', rotx(-0.18))
-    blob(m, (cx, cy + 0.21, zf + 0.82), 0.095, 0.105, 0.12, 'Driver', 4, 8)
+    sh = Vector((cx, cy + 0.22, zf + 0.56))
+    add_box(m, (cx, cy + 0.19, zf + 0.40), (0.36, 0.20, 0.36), 'Driver', rotx(-0.18))
+    blob(m, (cx, cy + 0.20, zf + 0.69), 0.09, 0.10, 0.105, 'Driver', 4, 8)
     for s in (1, -1):
         add_cyl(m, (cx + s * 0.20, sh.y - 0.04, sh.z - 0.06), (wx + s * 0.17, wy, wz), 0.034, 0.03, 6, 'Driver')
         add_cyl(m, (cx + s * 0.10, hip.y, hip.z), (cx + s * 0.11, cy - 0.40, zf + 0.20), 0.06, 0.05, 6, 'Driver')
