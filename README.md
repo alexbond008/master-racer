@@ -27,3 +27,13 @@ See `SPEC.md`, `research/`, and `CREDITS.md`.
 - **World**: real OpenStreetMap roads, parks and 76k building footprints at 1:1 scale (`public/data/*`), streamed by distance.
 - **Cars and landmarks**: modelled in Blender via Python (`blender/*.py`, run headless: `blender -b --python <script>`), exported to `public/models/{cars,landmarks}/*.glb`. See `blender/CONVENTIONS.md`.
 - Dev helpers: `window.__game` (teleportTo, police, traffic...), `game.devCam = {x,y,z,lx,ly,lz,fov,showCar}` for a free camera.
+
+## Running from the hard drive
+The project lives on the exFAT drive (`/Volumes/Seagate Por/Claude Projects/master-racer`). exFAT cannot hold the symlinks npm creates in
+`node_modules`, so run it from an internal disk:
+```bash
+rsync -rt --exclude node_modules --exclude data-source "/Volumes/Seagate Por/Claude Projects/master-racer/" ~/master-racer/
+cd ~/master-racer && npm install && npm run dev      # http://localhost:5173
+```
+`data-source/osm-raw` (on the drive only, not in git) holds the raw OpenStreetMap downloads and the Python scripts that produced
+`public/data/*.json`. Sync changes back to the drive with the same rsync, reversed.
