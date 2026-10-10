@@ -1,0 +1,19 @@
+{
+ "footprint": [
+  37.2,
+  38.0
+ ],
+ "height": 47.3,
+ "notes": "English Martyrs RC church, Streatham (Purdie 1892-94). Grey Kentish ragstone with Bath-stone dressings (NOT red brick), French Gothic, steep slate roofs, gable front with big traceried window, slender SW tower with 3-arch louvred belfry and ~46 m broached octagonal spire, lit windows, 1962 north extension.",
+ "triangles": 6798,
+ "bbox_min": [
+  -22.0,
+  -16.83,
+  0.0
+ ],
+ "bbox_max": [
+  15.71,
+  22.02,
+  47.3
+ ]
+}

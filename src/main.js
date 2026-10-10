@@ -431,7 +431,7 @@ function frame(now) {
   } else if (camera.view && camera.view.enabled) { camera.clearViewOffset(); camera.updateProjectionMatrix(); }
 
   world.update(dt, p.x, p.z);
-  if (game.devCam) { const c = game.devCam; camera.position.set(c.x, c.y, c.z); camera.lookAt(c.lx, c.ly, c.lz); camera.fov = c.fov || 55; camera.updateProjectionMatrix(); m.visible = false; world.update(0, c.lx, c.lz); }
+  if (game.devCam) { const c = game.devCam; camera.position.set(c.x, c.y, c.z); camera.lookAt(c.lx, c.ly, c.lz); camera.fov = c.fov || 55; camera.updateProjectionMatrix(); m.visible = !!c.showCar; world.update(0, c.lx, c.lz); }
   weather.update(dt, camera, spd);
   const guide = guidance(p);
 

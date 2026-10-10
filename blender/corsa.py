@@ -15,7 +15,7 @@ from mathutils import Vector, Matrix
 L.reset_scene()
 WB, R_W, W_T, R_RIM = 2.44, 0.29, 0.155, 0.1651
 TRACK_F, TRACK_R = 1.38, 1.36
-YF, YR = -(WB / 2 + 0.63), WB / 2 + 0.60         # -1.85 .. 1.82; black bumpers add 0.03 each => L = 3.73
+YF, YR = -(WB / 2 + 0.625), WB / 2 + 0.595       # -1.845 .. 1.815; black bumpers add 0.03 each => L = 3.73
 HW = 0.80
 
 car = L.Car()
@@ -125,7 +125,7 @@ car.sweep('trim', 'Trim', bar(YR - 0.002, 0.345, 1), bsec, (0, 1, 0))
 # ---------------------------------------------------------------- mirrors (body colour)
 for sx in (1, -1):
     car.ellipsoid('mirrors', 'Paint', (sx * 0.872, -0.52, 0.985), (0.03, 0.07, 0.05), 12, 8)
-    car.box('mirrors', 'Paint', (sx * 0.82, -0.52, 0.95), (0.09, 0.04, 0.022), 0.008)
+    car.box('mirrors', 'Paint', (sx * 0.81, -0.52, 0.95), (0.13, 0.04, 0.022), 0.008)
     car.ellipsoid('mirrors', 'Chrome', (sx * 0.899, -0.52, 0.985), (0.004, 0.058, 0.04), 10, 6)
 
 # ---------------------------------------------------------------- interior

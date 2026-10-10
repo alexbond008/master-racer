@@ -1,0 +1,17 @@
+{
+ "footprint": [
+  28.0,
+  63.5
+ ],
+ "height": 13.2,
+ "notes": "Brixton station on brick viaduct: built in the OSM footprint's local frame (20.5 x 61 m, rotated 7.5 deg; viaduct runs along local Y, NOT along X - matches footprint). 8 round-headed arches per long side with roller shutters / lit shopfronts and warm signs, parapet+murals, 2 tracks with third rail, 2 platforms with lit canopies + waiting rooms, plate-girder overbridge at +Y end, station frontage at -Y end with stairs, canopy and lit BRIXTON sign. Deck 7.2 m. Origin = footprint centre.",
+ "bbox_x": [
+  -14.41,
+  14.45
+ ],
+ "bbox_y": [
+  -33.92,
+  31.75
+ ],
+ "triangles": 13128
+}

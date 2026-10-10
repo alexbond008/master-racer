@@ -81,14 +81,6 @@ B.box(0, 0, DECK - 0.4, 2 * HW, VMAX - VMIN, 0.4, CONC)
 B.box(0, 0, DECK, 2 * HW - 2 * 0.5, VMAX - VMIN - 1.0, 0.3, BALLAST)
 
 
-# solid core + plain side walls (so nothing is hollow)
-B.box(0, (-25.0 + VMAX) / 2, 0, 2 * (HW - 3.3), VMAX + 25.0, DECK - 0.4, BRICK_D)
-for side in (-1, 1):
-    B.box(side * (3.2 + (HW - 3.2) / 2), (VMIN - 25.0) / 2 + 0.0, 0, HW - 3.2, 5.5 + 0.0, DECK - 0.4, BRICK_D)
-    B.box(side * (HW - 0.6), (VMIN + V0) / 2, 0, 1.2, V0 - VMIN, DECK, BRICK)
-    B.box(side * (HW - 0.6), (V0 + PITCH * NB + VMAX) / 2, 0, 1.2, VMAX - (V0 + PITCH * NB), DECK, BRICK)
-B.box(0, -27.8, 5.5, 6.4, 5.4, DECK - 0.4 - 5.5, BRICK_D)
-
 # ---- arches along both long faces
 NB = 8
 PITCH = 6.4
@@ -96,6 +88,14 @@ V0 = -21.6
 R = 2.6
 SP = 3.2
 TUN = 3.2  # tunnel depth before shutter
+# solid core + plain side walls (so nothing is hollow)
+B.box(0, (-25.0 + VMAX) / 2, 0, 2 * (HW - 3.3), VMAX + 25.0, DECK - 0.4, BRICK_D)
+for side in (-1, 1):
+    B.box(side * (3.2 + (HW - 3.2) / 2), (-28.3 - 25.0) / 2, 0, HW - 3.2, 3.3, DECK - 0.4, BRICK_D)
+    B.box(side * (HW - 0.6), (VMIN + V0) / 2, 0, 1.2, V0 - VMIN, DECK, BRICK)
+    B.box(side * (HW - 0.6), (V0 + PITCH * NB + VMAX) / 2, 0, 1.2, VMAX - (V0 + PITCH * NB), DECK, BRICK)
+B.box(0, -27.8, 5.5, 6.4, 5.4, DECK - 0.4 - 5.5, BRICK_D)
+
 for side in (1, -1):
     for i in range(NB):
         vc = V0 + PITCH * (i + 0.5)
@@ -284,11 +284,11 @@ for sx in (-2.4, 2.4):
 # flanking shop arches (lit kiosk / cafe / ticket office)
 for cx, kind in ((-7.0, 0), (7.0, 1)):
     poly = [(cx - 1.7, 0.0), (cx + 1.7, 0.0), (cx + 1.7, 2.4)] + [(p[0], p[1]) for p in reversed(arch_pts(cx, 1.7, 2.4, 12))] + [(cx - 1.7, 2.4)]
-    B.vprism(poly, 1.9, 0.08, SHOP if kind == 0 else SIGN_W)
-    B.box(cx, 1.8, 0.0, 3.4, 0.2, 1.0, DARK)
+    B.vprism(poly, 2.05, 0.08, SHOP if kind == 0 else SIGN_W)
+    B.box(cx, 1.95, 0.0, 3.4, 0.2, 1.0, DARK)
     # tunnel sides
-    B.box(cx - 1.7, 1.45, 0.0, 0.12, 0.9, 2.4, BRICK_D)
-    B.box(cx + 1.7, 1.45, 0.0, 0.12, 0.9, 2.4, BRICK_D)
+    B.box(cx - 1.7, 1.55, 0.0, 0.12, 1.1, 2.4, BRICK_D)
+    B.box(cx + 1.7, 1.55, 0.0, 0.12, 1.1, 2.4, BRICK_D)
 # big lit station sign above main arch + text
 B.box(0, -0.3, 6.35, 9.0, 0.45, 1.5, SIGN_B)
 B.box(0, -0.55, 6.5, 8.6, 0.08, 1.2, SIGN_B)
@@ -317,7 +317,7 @@ cams = [
     ('rear34', (45, 60, 28), (0, 2, 5), 38),
     ('side', (70, -2, 14), (0, 2, 5), 36),
     ('top', (0, -2, 90), (0, 0, 0), 40),
-    ('frontclose', (0, -45, 8), (0, -30, 5), 40),
+    ('frontclose', (-6, -52, 7), (0, -30, 5), 34),
     ('deck', (-9, -34, 16), (0, 8, 8), 42),
 ]
 finish(B, 'brixton_station', footprint=(28.0, 63.5),
