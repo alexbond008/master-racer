@@ -4,6 +4,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { CARS, CAR_ORDER, MPH } from './cars.js';
 import { CarPhysics } from './car.js';
@@ -71,11 +72,17 @@ const size = new THREE.Vector2();
 const rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 4 });
 const composer = new EffectComposer(renderer, rt);
 composer.addPass(new RenderPass(scene, camera));
+let aoPass = null;
+if (location.search.includes('ao')) { // ambient occlusion (costly), enable with ?ao
+  aoPass = new GTAOPass(scene, camera, innerWidth, innerHeight); aoPass.output = GTAOPass.OUTPUT.Default;
+  aoPass.updateGtaoMaterial({ radius: 1.2, distanceExponent: 1.5, thickness: 1.5, scale: 1.1, samples: 10, distanceFallOff: 1, screenSpaceRadius: false });
+  composer.addPass(aoPass);
+}
 const bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.55, 0.7, 0.88); composer.addPass(bloom);
 composer.addPass(new OutputPass());
 function resize() {
   const w = innerWidth, h = innerHeight;
-  renderer.setSize(w, h, false); composer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
+  renderer.setSize(w, h, false); composer.setSize(w, h); aoPass?.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize); resize();
 

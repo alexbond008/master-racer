@@ -19,6 +19,7 @@ B = Builder()
 BRICK = mat('Brick', hexc('#8b3d30'), 0.9)
 STONE = mat('PortlandStone', hexc('#ddd6c5'), 0.7)
 STONE_D = mat('StoneShade', hexc('#bdb5a3'), 0.8)
+SLATE_D = mat('SlateDark', hexc('#23272d'), 0.8)
 GRANITE = mat('Granite', hexc('#4c5056'), 0.5)
 SLATE = mat('Slate', hexc('#353a42'), 0.8)
 COPPER = mat('Copper', hexc('#5fa08a'), 0.45, 0.4)
@@ -137,6 +138,29 @@ for a, b, nrm, tan, L in edges():
             for sgn in (-1, 1):
                 B.box(mx + tan[0] * sgn * (L / 2 - 0.4) + ox * 0.08, my + tan[1] * sgn * (L / 2 - 0.4) + oy * 0.08, z, 0.8, 0.16, 0.5, STONE, rot=ang)
             z += 1.0
+    if not stoneface:
+        # stone string courses, banded window heads with keystones, pilasters, service doors (rear/side elevations)
+        for zc in (BASE - 0.1, 10.2, H - 1.0):
+            B.box(mx + ox * 0.1, my + oy * 0.1, zc, L, 0.22, 0.25, STONE, rot=ang)
+        for j in range(k):
+            u = -L / 2 + (j + 0.5) * step
+            B.push(ang, mx + tan[0] * u + ox * 0.1, my + tan[1] * u + oy * 0.1)
+            B.box(0, 0.1, 9.35, 2.5, 0.18, 0.3, STONE)       # first-floor flat arch head
+            B.box(0, 0.14, 9.5, 0.45, 0.18, 0.7, STONE_D)     # keystone
+            B.box(0, 0.1, 13.4, 1.6, 0.16, 0.25, STONE)       # attic head
+            B.box(0, 0.12, 2.9, 2.0, 0.14, 0.25, STONE)       # ground arch springing band
+            B.pop()
+        for j in range(1, k):
+            u = -L / 2 + j * step
+            B.box(mx + tan[0] * u + ox * 0.12, my + tan[1] * u + oy * 0.12, PL, 0.6, 0.28, H - PL - 0.3, STONE, rot=ang)
+        if (nrm[1] > 0.3 or nrm[0] < -0.5) and L > 9:
+            for uu in (-L * 0.28, L * 0.28):
+                B.push(ang, mx + tan[0] * uu + ox * 0.15, my + tan[1] * uu + oy * 0.15)
+                B.box(0, 0.0, 0.0, 2.6, 0.5, 3.4, DARK)
+                B.box(0, 0.0, 0.0, 3.2, 0.3, 3.9, STONE)   # surround
+                B.box(0, 0.0, 0.0, 2.2, 0.62, 2.9, DOOR)   # lit service door
+                B.box(0, 0.7, 3.5, 3.4, 1.0, 0.2, STONE_D)  # canopy
+                B.pop()
     # Ionic columns between first-floor windows on front/arc
     if front or arc:
         for j in range(k + 1):
@@ -278,17 +302,163 @@ for k in range(8):  # crown points
 B.frustum(0, 0, 40.2, 41.0, 0.5, 0.05, GOLD, segs=8)
 B.pop()
 
-# ---------------------------------------------------------------- roofs (slate hip behind parapet) + chimneys
-# slate roof slab (inset polygon scaled toward centroid)
-cx0 = sum(p[0] for p in POLY) / len(POLY)
-cy0 = sum(p[1] for p in POLY) / len(POLY)
-inset = [(cx0 + (p[0] - cx0) * 0.97, cy0 + (p[1] - cy0) * 0.97) for p in POLY]
-B.prism(POLY, H + 0.3, H + 0.5, SLATE)
-for (x, y) in [(-25, 0), (-28, 18), (-10, 33), (5, 20), (-12, 5), (22, -10), (-5, -12), (15, 2), (-20, 24)]:
-    B.box(x, y, H + 0.5, 1.4, 1.4, 3.0, BRICK)
-    B.box(x, y, H + 3.5, 1.8, 1.8, 0.3, STONE)
-# assembly hall lantern roof (rear rhombus)
-B.box(-8, 30, H + 0.5, 12, 8, 1.6, SLATE, rot=math.radians(-43))
+# ---------------------------------------------------------------- central pedimented entrance bay (projecting bump x -3.2..1.2)
+CBX = -1.0
+B.box(CBX, -18.1, BASE, 6.8, 1.2, 0.5, STONE)  # entablature base
+for dx in (-2.4, -0.8, 0.8, 2.4):  # four Ionic columns, full upper order
+    B.box(CBX + dx, -18.3, BASE + 0.4, 0.75, 0.75, 6.2, STONE)
+    B.box(CBX + dx, -18.3, BASE + 6.6, 1.0, 0.95, 0.35, STONE_D)
+B.box(CBX, -18.1, BASE + 6.9, 7.2, 1.5, 1.2, STONE)            # entablature
+B.box(CBX, -18.1, BASE + 8.1, 7.6, 1.8, 0.35, STONE_D)           # cornice
+# broken pediment above parapet line
+B.vprism([(CBX - 3.8, H - 0.7), (CBX + 3.8, H - 0.7), (CBX, H + 2.4)], -18.6, 0.8, STONE)
+B.vprism([(CBX - 2.6, H - 0.2), (CBX + 2.6, H - 0.2), (CBX, H + 1.6)], -18.75, 0.1, STONE_D)
+B.box(CBX, -18.9, H - 0.1, 1.0, 0.2, 0.9, GOLD)  # cartouche / arms
+# lit entrance door + windows
+B.push(0, CBX, -17.6)
+B.arch_prism(-1.4, 1.4, -0.7, 0.0, 3.5, 0.2, DOOR)
+B.box(0, -0.7, 4.6, 3.6, 0.15, 0.8, WIN)
+B.pop()
+for dx in (-2.4, 2.4):
+    B.box(CBX + dx * 1.25, -18.0, 1.2, 0.9, 0.3, 3.0, WIN)
+
+# ---------------------------------------------------------------- pitched slate roofs (mansard-hip ring + lead flat) + dormers + pavilions + chimneys
+def simplify(poly, minlen=1.7):
+    pts = list(poly)
+    changed = True
+    while changed and len(pts) > 5:
+        changed = False
+        for i in range(len(pts)):
+            a, b = pts[i], pts[(i + 1) % len(pts)]
+            if math.hypot(b[0] - a[0], b[1] - a[1]) < minlen:
+                pts[i] = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+                pts.pop((i + 1) % len(pts))
+                changed = True
+                break
+    return pts
+
+
+def offset_in(poly, d):
+    n_ = len(poly)
+    lines = []
+    for i in range(n_):
+        a, b = poly[i], poly[(i + 1) % n_]
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        L_ = math.hypot(dx, dy)
+        ux, uy = dx / L_, dy / L_
+        lines.append(((a[0] - uy * d, a[1] + ux * d), (ux, uy)))
+    out = []
+    for i in range(n_):
+        (p0, d0), (p1, d1) = lines[i - 1], lines[i]
+        den = d0[0] * d1[1] - d0[1] * d1[0]
+        if abs(den) < 1e-6:
+            out.append(p1)
+            continue
+        t = ((p1[0] - p0[0]) * d1[1] - (p1[1] - p0[1]) * d1[0]) / den
+        q = (p0[0] + d0[0] * t, p0[1] + d0[1] * t)
+        v = poly[i]
+        dist = math.hypot(q[0] - v[0], q[1] - v[1])
+        lim = 2.2 * d
+        if dist > lim:
+            q = (v[0] + (q[0] - v[0]) * lim / dist, v[1] + (q[1] - v[1]) * lim / dist)
+        out.append(q)
+    return out
+
+
+def pip(x, y, poly):
+    c = False
+    for i in range(len(poly)):
+        x0, y0 = poly[i]
+        x1, y1 = poly[(i + 1) % len(poly)]
+        if (y0 > y) != (y1 > y) and x < (x1 - x0) * (y - y0) / (y1 - y0) + x0:
+            c = not c
+    return c
+
+
+LEAD = mat('Lead', hexc('#5b6468'), 0.6, 0.3)
+Z0R = H + 0.8
+RISE = 3.6
+DR = 3.8
+outer = simplify(pl)
+inner = offset_in(outer, DR)
+no = len(outer)
+for i in range(no):
+    o0, o1 = outer[i], outer[(i + 1) % no]
+    i0, i1 = inner[i], inner[(i + 1) % no]
+    B.face([(o0[0], o0[1], Z0R), (o1[0], o1[1], Z0R), (i1[0], i1[1], Z0R + RISE), (i0[0], i0[1], Z0R + RISE)], SLATE)
+    # slate courses (thin lines) for texture
+    for f in (0.33, 0.66):
+        a0 = (o0[0] + (i0[0] - o0[0]) * f, o0[1] + (i0[1] - o0[1]) * f, Z0R + RISE * f)
+        a1 = (o1[0] + (i1[0] - o1[0]) * f, o1[1] + (i1[1] - o1[1]) * f, Z0R + RISE * f)
+        B.face([a0, a1, (a1[0], a1[1], a1[2] + 0.05), (a0[0], a0[1], a0[2] + 0.05)], SLATE_D)
+# eaves underside + base plate so no gaps
+B.prism(POLY, H + 0.3, Z0R + 0.02, SLATE)
+B.prism(inner, Z0R + RISE - 0.05, Z0R + RISE + 0.1, LEAD)
+# ridge cresting along inner polygon edges
+for i in range(no):
+    a, b = inner[i], inner[(i + 1) % no]
+    L_ = math.hypot(b[0] - a[0], b[1] - a[1])
+    if L_ > 0.5:
+        B.box((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, Z0R + RISE + 0.1, L_, 0.25, 0.3, SLATE_D, rot=math.atan2(b[1] - a[1], b[0] - a[0]))
+
+# dormers along stone / front elevations (on the slope, 1.5 m in from the eaves)
+for i in range(no):
+    a, b = outer[i], outer[(i + 1) % no]
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    L_ = math.hypot(dx, dy)
+    nx_, ny_ = dy / L_, -dx / L_
+    if L_ < 6:
+        continue
+    if not (ny_ < -0.8 or nx_ > 0.55 or L_ > 14):
+        continue
+    kk = int(L_ / 6.2)
+    for j in range(kk):
+        u = (j + 0.5) / kk
+        x = a[0] + dx * u - nx_ * 1.7
+        y = a[1] + dy * u - ny_ * 1.7
+        z = Z0R + 1.7 * RISE / DR
+        outang = math.atan2(ny_, nx_) + math.pi / 2
+        B.push(outang, x, y)
+        B.box(0, 0, z - 0.2, 1.7, 1.4, 1.9, STONE)
+        B.box(0, -0.72, z + 0.1, 1.1, 0.1, 1.2, WIN)
+        B.box(0, -0.74, z + 1.35, 1.5, 0.12, 0.2, STONE_D)
+        # small pediment + slate roof
+        B.vprism([(-0.95, z + 1.7), (0.95, z + 1.7), (0, z + 2.55)], -0.78, 0.18, STONE)
+        B.face([(-1.0, -0.8, z + 1.68), (0, -0.8, z + 2.58), (0, 0.8, z + 2.58), (-1.0, 0.8, z + 1.68)], SLATE)
+        B.face([(1.0, 0.8, z + 1.68), (0, 0.8, z + 2.58), (0, -0.8, z + 2.58), (1.0, -0.8, z + 1.68)], SLATE)
+        B.pop()
+
+# hipped pavilion roofs (stone/brick drum + pyramid slate hip + finial)
+PAV = [(-29.5, -12.8, 7.0, 6.4), (-1.0, -12.8, 7.6, 6.4), (15.5, -12.5, 7.0, 6.4), (-28.5, 3.0, 6.6, 6.6), (-14.0, 38.0, 7.0, 7.0), (8.0, 24.0, 6.6, 6.6)]
+for (x, y, w, d) in PAV:
+    if not pip(x, y, pl):
+        continue
+    z = Z0R + 2.0
+    B.box(x, y, z, w, d, 2.6, STONE)
+    B.box(x, y, z + 2.6, w + 0.6, d + 0.6, 0.3, STONE_D)
+    for sx in (-1, 1):
+        B.box(x + sx * 1.6, y - d / 2 - 0.03, z + 0.5, 1.1, 0.1, 1.6, WIN)
+        B.box(x + sx * 1.6, y + d / 2 + 0.03, z + 0.5, 1.1, 0.1, 1.6, WIN)
+    # pyramidal hip
+    hz0, hz1 = z + 2.9, z + 2.9 + 3.8
+    for (ax, ay, bx, by) in ((-1, -1, 1, -1), (1, -1, 1, 1), (1, 1, -1, 1), (-1, 1, -1, -1)):
+        B.face([(x + ax * (w + 0.6) / 2, y + ay * (d + 0.6) / 2, hz0), (x + bx * (w + 0.6) / 2, y + by * (d + 0.6) / 2, hz0), (x, y, hz1)], SLATE)
+    B.box(x, y, hz1 - 0.1, 0.2, 0.2, 1.4, GOLD)
+
+# tall stone chimneys with brick bands and pots
+CH = [(-30, -12), (-21, -12.6), (-9, -12.8), (4, -12.5), (24, -12), (-28, 5), (-26, 22), (-12, 34), (-2, 28), (8, 17), (22, 3), (-17, 10)]
+for (x, y) in CH:
+    if not pip(x, y, pl):
+        continue
+    B.box(x, y, Z0R, 1.9, 1.9, 5.2, STONE)
+    B.box(x, y, Z0R + 2.4, 2.1, 2.1, 0.3, BRICK)
+    B.box(x, y, Z0R + 3.4, 2.1, 2.1, 0.3, BRICK)
+    B.box(x, y, Z0R + 5.2, 2.4, 2.4, 0.4, STONE_D)
+    for dx in (-0.45, 0.45):
+        B.frustum(x + dx, y, Z0R + 5.6, Z0R + 6.6, 0.32, 0.26, BRICK, segs=8)
+# assembly-hall roof lantern (rear rhombus) - glazed ridge
+B.box(-8, 30, Z0R + RISE, 12, 7, 1.0, LEAD, rot=math.radians(-43))
+B.box(-8, 30, Z0R + RISE + 1.0, 12.4, 1.0, 0.8, WIN, rot=math.radians(-43)) if False else None
 
 cams = [
     ('front34', (95, -80, 45), (8, 0, 14), 38),

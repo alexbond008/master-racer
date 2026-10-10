@@ -4,6 +4,7 @@
 # 3 pre-patinated seamed copper, pale turquoise-green, horizontal panel seams, on end faces
 # 4 long faces: vertical stripes of saturated coloured glass (lime-yellow, red, orange, green, teal, blue, black, clear)
 # 5 vermilion 'beret' pod (dome with brim) + a 2nd pod piercing the roof, stainless 'LIBRARY' letters 2 m high on the front roof edge
+# R2: undulating fine-louvre mesh screen on +X long face, staggered copper seams (horizontal+vertical), columns of varied thickness, bigger beret
 # 6 stem ground floors glazed (lit info/media centre); stair/lift core and plant on roof
 import sys, os; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from lm_common import *
@@ -22,6 +23,8 @@ dark = mat('Glass_Dark', (22, 30, 42), 0.1, 0.5)
 beret = mat('Beret', (235, 70, 25), 0.35, 0.1, emit=(255, 80, 20), strength=0.8)
 pod2 = mat('Pod_Pale', (170, 200, 190), 0.4, 0.5)
 steelc = mat('Stainless', (200, 205, 210), 0.3, 0.9)
+cuS = mat('Copper_Seam', (70, 124, 108), 0.6, 0.3)
+meshm = mat('Mesh_Screen', (205, 210, 214), 0.35, 0.9)
 signm = mat('Emit_Sign', (255, 255, 255), 0.4, emit=(235, 245, 255), strength=3.5)
 winw = mat('Emit_Window', (255, 214, 140), 0.3, emit=(255, 196, 110), strength=3.5)
 pal = [('lime', (205, 235, 40)), ('red', (225, 35, 40)), ('orange', (245, 120, 30)), ('green', (30, 170, 70)),
@@ -40,7 +43,12 @@ b.box(roof, -hx - 0.1, hx + 0.1, -hy - 0.1, hy + 0.1, H, H + 0.35)  # roof slab 
 def seams(y, ny, z0, z1, x0, x1, ph=1.15):
     z = z0; k = 0
     while z + ph <= z1 + 1e-6:
-        b.wrect(cuB if k % 2 else cuC, (x0, y, z), (1, 0), (0, ny), x1 - x0, ph - 0.06, off=0.03)
+        b.wrect(cuB if k % 3 == 1 else (cuC if k % 3 == 2 else cuA), (x0, y, z), (1, 0), (0, ny), x1 - x0, ph - 0.06, off=0.03)
+        xj = x0 + (0.9 if k % 2 else 0.0)
+        while xj < x1 - 0.1:
+            b.wrect(cuS, (xj, y, z), (1, 0), (0, ny), 0.05, ph - 0.06, off=0.05)
+            xj += 1.8
+        b.wrect(cuS, (x0, y, z - 0.03), (1, 0), (0, ny), x1 - x0, 0.05, off=0.05)
         z += ph; k += 1
 seams(-hy, -1, Z_ARM, H, -hx, hx)
 seams(hy, 1, 0.0, H, -hx, hx)
@@ -81,19 +89,24 @@ for i in range(8):
     b.box(steel, x0 - 0.2, x0 - 0.05, YS - 0.1, YS - 0.03, 0.0, Z_ARM)
 # ---- raking steel columns under the arm
 r = random.Random(3)
-for yt in (-19.0, -10.5, -2.5):
-    for xt in (-10.0, -3.0, 4.0, 11.0):
-        top = (xt + r.uniform(-0.5, 0.5), yt, Z_ARM - 0.7)
-        bot = (xt + r.uniform(-2.2, 2.2), yt + r.uniform(-3.0, 2.0), 0.0)
-        b.beam(steel, bot, top, w=0.21, n=6)
+cl = [(-10.5, -19.5, 0.36), (-4.0, -19.0, 0.2), (2.0, -19.5, 0.28), (8.0, -19.0, 0.2), (11.5, -18.5, 0.34),
+      (-10.0, -11.0, 0.22), (-2.0, -10.5, 0.4), (5.0, -11.0, 0.18), (11.0, -10.0, 0.26),
+      (-9.0, -3.0, 0.3), (-2.5, -2.5, 0.16), (4.5, -3.0, 0.38), (11.0, -2.5, 0.2)]
+for (xt, yt, rad) in cl:
+    top = (xt + r.uniform(-0.4, 0.4), yt, Z_ARM - 0.7)
+    sgx = r.choice((-1, 1)); sgy = r.choice((-1, 1))
+    bot = (xt + sgx * r.uniform(0.8, 3.2), yt + sgy * r.uniform(0.8, 3.0), 0.0)
+    b.beam(steel, bot, top, w=rad, n=7)
+    b.cyl(steel, bot[0], bot[1], 0.0, 0.25, rad * 1.5, n=7)
 # downlights under soffit
 for yy in (-18, -12, -6, -1.5):
     for xx in (-8, -2.7, 2.7, 8):
         b.wrect(winw, (xx - 0.25, yy, Z_ARM - 0.72), (1, 0), (0, 1), 0.5, 0.5, off=0.0) if False else \
             b.quad(winw, (xx-0.3, yy-0.3, Z_ARM-0.72), (xx-0.3, yy+0.3, Z_ARM-0.72), (xx+0.3, yy+0.3, Z_ARM-0.72), (xx+0.3, yy-0.3, Z_ARM-0.72))
 # ---- roof: pods, core, plant
-b.ellipsoid(beret, 0.5, -8.5, H + 0.2, 4.6, 3.6, 2.4, nu=16, nv=6, zmin=0.0)       # dome
-b.cyl(beret, 0.5, -8.5, H + 0.2, H + 0.5, 6.2, n=20)                              # brim disc
+b.cyl(beret, 0.5, -9.5, H + 0.2, H + 1.2, 3.4, n=20)                                  # drum
+b.ellipsoid(beret, 0.5, -9.5, H + 1.2, 6.4, 5.0, 3.4, nu=20, nv=8, zmin=0.0)       # big dome
+b.cyl(beret, 0.5, -9.5, H + 1.0, H + 1.5, 8.2, n=24)                              # brim disc
 b.ellipsoid(pod2, 6.0, -2.0, H + 0.2, 3.2, 3.0, 2.6, nu=12, nv=5, zmin=0.0)
 b.ellipsoid(pod2, -6.5, 5.0, H + 0.2, 2.6, 2.4, 2.0, nu=12, nv=5, zmin=0.0)
 b.box(cuC, 4.5, 10.5, 12.0, 18.0, H + 0.35, H + 4.0)                              # lift/stair core
@@ -103,6 +116,27 @@ b.box(roof, -9, -3, 8, 13, H + 0.35, H + 1.8)
 # parapet
 for (x0, x1, y0, y1) in ((-hx, hx, hy - 0.2, hy), (-hx, hx, -hy, -hy + 0.2), (-hx, -hx + 0.2, -hy, hy), (hx - 0.2, hx, -hy, hy)):
     b.box(cuB, x0, x1, y0, y1, H + 0.35, H + 0.9)
+# undulating louvre mesh screen in front of the +X coloured glass (stem + arm), plus under the soffit
+def screen_y(y): return hx + 1.0 + 0.9 * math.sin(y * 0.33) + 0.5 * math.sin(y * 0.9 + 1.0)
+yy = -hy + 0.2
+while yy < hy - 0.1:
+    x = screen_y(yy)
+    z0s = Z_ARM - 0.3 if yy < YS else 0.0
+    b.box(meshm, x, x + 0.34, yy, yy + 0.05, z0s, H - 0.2)
+    yy += 0.3
+for k in range(18):        # slim horizontal rails holding the louvres
+    pass
+yy = -hy + 0.2
+while yy < hy - 0.1:
+    x = screen_y(yy); x2 = screen_y(yy + 0.9)
+    for z in (Z_ARM + 3.0, H - 0.4) if yy < YS else (0.4, 8.0, 15.0, H - 0.4):
+        b.beam(meshm, (x, yy, z), (x2, yy + 0.9, z), w=0.05, h=0.08)
+    yy += 0.9
+# soffit louvres (undersides of the arm), fine lateral slats
+yy = -hy + 0.3
+while yy < YS - 0.2:
+    b.box(meshm, -hx + 0.3, hx - 0.3, yy, yy + 0.06, Z_ARM - 1.05, Z_ARM - 0.7)
+    yy += 0.45
 objs = b.build('library')
 # LIBRARY letters, stainless, glowing slightly, standing on the front roof edge facing -Y
 px, py, pz = Frame(-1.3, 4.1, 6.7).p(-3.0, -hy - 0.15, H + 0.9)
