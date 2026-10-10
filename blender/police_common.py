@@ -13,6 +13,7 @@ PREV_DIR = HOME + '/blender/previews'
 
 
 FLAT_GROUPS = ('plates', 'lights', 'chrome', 'strobes')
+CUT_Z = None
 
 
 def lerp(a, b, t):
@@ -102,12 +103,24 @@ def make_materials(paint=(0.92, 0.93, 0.95), paint_rough=0.25, paint_metal=0.5):
         mats[name] = m
         return m
     mk('Paint', paint, paint_rough, paint_metal)
-    mk('Glass', (0.035, 0.05, 0.07), 0.04, 0.6)
+    g = mk('Glass', (0.03, 0.045, 0.06), 0.04, 0.4)
+    g.node_tree.nodes['Principled BSDF'].inputs['Alpha'].default_value = 0.3
+    g.diffuse_color = (0.03, 0.045, 0.06, 0.3)
+    try:
+        g.surface_render_method = 'BLENDED'
+    except Exception:
+        pass
+    try:
+        g.blend_method = 'BLEND'
+    except Exception:
+        pass
     mk('Tyre', (0.025, 0.025, 0.027), 0.85, 0.0)
     mk('Rim', (0.72, 0.73, 0.76), 0.3, 0.9)
     mk('Chrome', (0.9, 0.9, 0.92), 0.12, 1.0)
     mk('Trim', (0.025, 0.025, 0.028), 0.6, 0.0)
-    mk('Interior', (0.05, 0.05, 0.055), 0.8, 0.0)
+    mk('Interior', (0.07, 0.07, 0.075), 0.8, 0.0)
+    mk('Emit_Dash', (0.2, 1.0, 0.7), 0.4, 0.0, (0.2, 1.0, 0.7), 2.5)
+    mk('Driver', (0.62, 0.43, 0.33), 0.7, 0.0)
     mk('HeadLight', (1.0, 0.95, 0.8), 0.1, 0.0, (1.0, 0.92, 0.72), 3.0)
     mk('TailLight', (0.8, 0.02, 0.02), 0.2, 0.0, (1.0, 0.04, 0.03), 2.5)
     mk('Plate', (0.93, 0.9, 0.82), 0.5, 0.0)
@@ -686,6 +699,195 @@ class Car:
             # stem towards body
             self.tbox('mirrors', 'Paint', sx * (x - 0.07), self.Y(yy) + 0.02, z - 0.03, 0.05, 0.16, 0.07, 0.12, 0.05)
 
+
+    # ------------------------------------------------------------ round 2: transparent windows + interior + officers
+    def cut_windows(self, cell=0.05):
+        """Remove body faces lying under the glass patches so the interior shows through the translucent glass."""
+        bm, _ = self.groups['body']
+        gb = bmesh.new()
+        tmp = bpy.data.meshes.new('t')
+        self.groups['glass'][0].to_mesh(tmp)
+        gb.from_mesh(tmp)
+        bpy.data.meshes.remove(tmp)
+        bmesh.ops.triangulate(gb, faces=gb.faces[:])
+        gtree = BVHTree.FromBMesh(gb)
+        gb.free()
+
+        def near(p, r):
+            loc, n, i, dist = gtree.find_nearest(p, r)
+            return loc is not None
+        for it in range(6):
+            bmesh.ops.triangulate(bm, faces=bm.faces[:])
+            todo = set()
+            for f in bm.faces:
+                if any(e.calc_length() > cell for e in f.edges):
+                    pts = [v.co for v in f.verts] + [f.calc_center_median()]
+                    if any(near(p, 0.03) for p in pts):
+                        for e in f.edges:
+                            if e.calc_length() > cell:
+                                todo.add(e)
+            if not todo:
+                break
+            bmesh.ops.subdivide_edges(bm, edges=list(todo), cuts=1, use_grid_fill=False)
+        bmesh.ops.triangulate(bm, faces=bm.faces[:])
+        kill = []
+        for f in bm.faces:
+            pts = [v.co for v in f.verts] + [f.calc_center_median()]
+            if all(near(p, 0.012) for p in pts):
+                kill.append(f)
+        bmesh.ops.delete(bm, geom=kill, context='FACES')
+        print('cut_windows: removed', len(kill), 'faces')
+
+    def limb(self, g, mat, p0, p1, r0, r1, sides=6):
+        bm, _ = self.group(g)
+        mi = self.mat_index(g, mat)
+        a, b = Vector(p0), Vector(p1)
+        ax = (b - a).normalized()
+        up = Vector((0, 0, 1)) if abs(ax.z) < 0.9 else Vector((1, 0, 0))
+        u = ax.cross(up).normalized()
+        v = ax.cross(u).normalized()
+        r0s, r1s = [], []
+        for k in range(sides):
+            t = 2 * math.pi * k / sides
+            d = u * math.cos(t) + v * math.sin(t)
+            r0s.append(bm.verts.new(a + d * r0))
+            r1s.append(bm.verts.new(b + d * r1))
+        fs = []
+        for k in range(sides):
+            k2 = (k + 1) % sides
+            fs.append(bm.faces.new((r0s[k], r0s[k2], r1s[k2], r1s[k])))
+        fs.append(bm.faces.new(r0s[::-1]))
+        fs.append(bm.faces.new(r1s))
+        for f in fs:
+            f.material_index = mi
+        bmesh.ops.recalc_face_normals(bm, faces=fs)
+
+    def blob(self, g, mat, c, rx, ry, rz, sub=2):
+        bm, _ = self.group(g)
+        mi = self.mat_index(g, mat)
+        r = bmesh.ops.create_icosphere(bm, subdivisions=sub, radius=1.0)
+        for v in r['verts']:
+            v.co = Vector((c[0] + v.co.x * rx, c[1] + v.co.y * ry, c[2] + v.co.z * rz))
+        for f in bm.faces:
+            if all(v in r['verts'] for v in f.verts):
+                f.material_index = mi
+
+    def torus(self, g, mat, c, R, rr, tilt, nu=16, nv=6):
+        bm, _ = self.group(g)
+        mi = self.mat_index(g, mat)
+        rot = Matrix.Rotation(tilt, 3, 'X')
+        vs = []
+        for i in range(nu):
+            a = 2 * math.pi * i / nu
+            row = []
+            for j in range(nv):
+                b = 2 * math.pi * j / nv
+                rad = R + rr * math.cos(b)
+                p = Vector((rad * math.cos(a), rr * math.sin(b), rad * math.sin(a)))  # ring in XZ, axis = Y
+                row.append(bm.verts.new(Vector(c) + rot @ p))
+            vs.append(row)
+        fs = []
+        for i in range(nu):
+            for j in range(nv):
+                f = bm.faces.new((vs[i][j], vs[(i + 1) % nu][j], vs[(i + 1) % nu][(j + 1) % nv], vs[i][(j + 1) % nv]))
+                f.material_index = mi
+                fs.append(f)
+        bmesh.ops.recalc_face_normals(bm, faces=fs)
+
+    def seat(self, cx, yy, ztop, w=0.46, depth=0.46, back_h=0.55, head=True, g='interior'):
+        y = self.Y(yy)
+        zc = ztop - 0.12
+        self.tbox(g, 'Interior', cx, y, zc, 0.12, w, depth, w - 0.02, depth - 0.02)            # cushion
+        self.tbox(g, 'Interior', cx, y + depth / 2 + 0.02, ztop - 0.02, back_h, w, 0.10, w - 0.06, 0.09, shift_y=0.12)  # back (leans back)
+        if head:
+            self.tbox(g, 'Interior', cx, y + depth / 2 + 0.02 + 0.125, ztop + back_h - 0.02, 0.15, 0.22, 0.08, 0.20, 0.07)  # headrest
+
+    def interior(self, I):
+        """I: dict of cabin layout (yy distances from front, heights z). Right-hand drive: driver at -X."""
+        g = 'interior'
+        Y = self.Y
+        hw = I['hw_in']
+        # floor, roof lining, parcel shelf
+        self.tbox(g, 'Interior', 0, Y((I['dash_y0'] + I['bench_back_y']) / 2), I['floor_z'], 0.03, 2 * hw - 0.1, I['bench_back_y'] - I['dash_y0'], 2 * hw - 0.1, I['bench_back_y'] - I['dash_y0'])
+        self.tbox(g, 'Interior', 0, Y((I['roof_y0'] + I['roof_y1']) / 2), I['roof_z'] - 0.02, 0.02, 2 * I['roof_hw'], I['roof_y1'] - I['roof_y0'], 2 * I['roof_hw'], I['roof_y1'] - I['roof_y0'])
+        self.tbox(g, 'Interior', 0, Y((I['bench_back_y'] + I['shelf_y1']) / 2), I['shelf_z'], 0.025, 2 * I['shelf_hw'], I['shelf_y1'] - I['bench_back_y'], 2 * I['shelf_hw'], I['shelf_y1'] - I['bench_back_y'])
+        # door cards
+        for sx in (-1, 1):
+            self.tbox(g, 'Interior', sx * (hw - 0.01), Y((I['dash_y1'] + I['bench_back_y']) / 2), I['card_z0'], I['card_z1'] - I['card_z0'], 0.03, I['bench_back_y'] - I['dash_y1'], 0.03, I['bench_back_y'] - I['dash_y1'])
+        # dashboard
+        dy0, dy1, dz = I['dash_y0'], I['dash_y1'], I['dash_z']
+        fs = self.tbox(g, 'Interior', 0, Y((dy0 + dy1) / 2), dz - 0.20, 0.20, 2 * hw - 0.08, dy1 - dy0, 2 * hw - 0.08, (dy1 - dy0) * 0.75, shift_y=(dy1 - dy0) * 0.12)
+        xd = -I['seat_x']
+        # binnacle + dials
+        by = Y(dy1) - 0.02
+        self.tbox(g, 'Interior', xd, by, dz, 0.09, 0.40, 0.17, 0.38, 0.12, shift_y=0.02)
+        for dx in (-0.09, 0.09):
+            self.tbox(g, 'Emit_Dash', xd + dx, by + 0.09, dz + 0.02, 0.05, 0.075, 0.004, 0.075, 0.004)
+        # steering column + wheel
+        wy, wz = Y(I['wheel_y']), I['wheel_z']
+        self.limb(g, 'Interior', (xd, wy - 0.12, wz - 0.12), (xd, wy, wz), 0.028, 0.03)
+        self.torus(g, 'Interior', (xd, wy, wz), 0.17, 0.016, math.radians(28))
+        self.limb(g, 'Interior', (xd, wy, wz), (xd + 0.17, wy + 0.0, wz + 0.0), 0.012, 0.012, 4)
+        # centre stack, radio screen, console
+        sy = Y(dy1) - 0.02
+        self.tbox(g, 'Interior', 0, sy, dz - 0.30, 0.30, 0.20, 0.09, 0.20, 0.07, shift_y=0.02)
+        self.tbox(g, 'Emit_Dash', 0, sy + 0.05, dz - 0.10, 0.045, 0.12, 0.004, 0.12, 0.004)
+        self.tbox(g, 'Emit_Dash', 0, sy + 0.05, dz - 0.18, 0.025, 0.10, 0.004, 0.10, 0.004)
+        cy0, cy1 = dy1 + 0.0, I['seat_y'] + 0.15
+        self.tbox(g, 'Interior', 0, Y((cy0 + cy1) / 2), I['floor_z'], I['console_z'] - I['floor_z'], 0.22, cy1 - cy0, 0.18, cy1 - cy0 - 0.05)
+        # front seats
+        for sx in (-1, 1):
+            self.seat(sx * I['seat_x'], I['seat_y'], I['seat_z'], back_h=I['back_h'])
+        # cage / partition behind front seats
+        cy = Y(I['cage_y'])
+        z0, z1 = I['seat_z'] + 0.05, I['cage_top']
+        n = int(2 * hw / 0.09)
+        for i in range(n + 1):
+            x = -hw + 0.04 + i * (2 * hw - 0.08) / n
+            self.tbox(g, 'Interior', x, cy, z0, z1 - z0, 0.02, 0.02, 0.02, 0.02)
+        for z in (z0, (z0 + z1) / 2, z1 - 0.02):
+            self.tbox(g, 'Interior', 0, cy, z, 0.025, 2 * hw - 0.06, 0.03, 2 * hw - 0.06, 0.03)
+        # rear bench
+        self.seat(0, I['bench_y'], I['bench_z'], w=2 * hw - 0.2, depth=0.42, back_h=I['bench_back_h'], head=False)
+
+    def officer(self, name, cx, yy, zseat, wheel=None, wheel_hands=True, hip_back=0.0):
+        """Low-poly seated officer: hi-vis jacket, dark trousers, police cap. wheel=(y,z) hands on wheel."""
+        g = name
+        y = self.Y(yy) + hip_back
+        zh = zseat + 0.0
+        lean = 0.07
+        # torso (hi-vis yellow jacket), leaning back slightly
+        self.tbox(g, 'Livery_Yellow', cx, y + 0.05, zh + 0.02, 0.50, 0.40, 0.22, 0.46, 0.22, shift_y=lean)
+        # dark reflective band on the jacket
+        self.tbox(g, 'Livery_Dark', cx, y + 0.05 + lean * 0.35, zh + 0.20, 0.07, 0.405, 0.225, 0.405, 0.225, shift_y=lean * 0.14)
+        hy = y + 0.05 + lean
+        self.limb(g, 'Driver', (cx, hy - 0.01, zh + 0.50), (cx, hy - 0.02, zh + 0.58), 0.05, 0.045)     # neck
+        hz = zh + 0.68
+        self.blob(g, 'Driver', (cx, hy - 0.02, hz), 0.09, 0.10, 0.11)                                   # head
+        # police cap: dark crown, blue/white band, peak
+        self.limb(g, 'Livery_Dark', (cx, hy - 0.02, hz + 0.045), (cx, hy - 0.02, hz + 0.115), 0.112, 0.118, 10)
+        self.limb(g, 'Livery_Blue', (cx, hy - 0.02, hz + 0.04), (cx, hy - 0.02, hz + 0.065), 0.116, 0.116, 10)
+        self.tbox(g, 'Livery_Dark', cx, hy - 0.13, hz + 0.05, 0.012, 0.17, 0.08, 0.15, 0.06)
+        # legs
+        for sx in (-1, 1):
+            hx = cx + sx * 0.10
+            self.limb(g, 'Livery_Dark', (hx, y + 0.02, zh + 0.07), (hx, y - 0.40, zh + 0.13), 0.075, 0.062)
+            self.limb(g, 'Livery_Dark', (hx, y - 0.40, zh + 0.13), (hx, y - 0.50, zseat - 0.28), 0.062, 0.05)
+        # arms
+        shy, shz = hy - 0.0, zh + 0.46
+        for sx in (-1, 1):
+            sh = (cx + sx * 0.22, shy, shz)
+            if wheel is not None:
+                wy, wz = self.Y(wheel[0]), wheel[1]
+                hand = (cx + sx * 0.13, wy + 0.05, wz + sx * 0.0 - 0.0)
+                el = (cx + sx * 0.26, (shy + wy) / 2 - 0.03, (shz + wz) / 2 - 0.12)
+            else:
+                hand = (cx + sx * 0.13, y - 0.28, zh + 0.20)
+                el = (cx + sx * 0.25, y - 0.04, zh + 0.22)
+            self.limb(g, 'Livery_Yellow', sh, el, 0.058, 0.05)
+            self.limb(g, 'Livery_Yellow', el, hand, 0.05, 0.042)
+            self.blob(g, 'Driver', hand, 0.04, 0.04, 0.04, 1)
+
     # ------------------------------------------------------------ finalize groups to objects
     def finalize(self):
         self.objs = {}
@@ -790,6 +992,7 @@ class Car:
             'rear': (0.0, L * 2.0, 1.2),
             'lightbar': (L * 0.5, L * 0.55, 2.7),
             'frontlow': (-L * 0.45, -L * 0.75, 0.6),
+            'win34': (L * 0.62, -L * 0.5, 1.0),
             'closefront': (0.9, mn.y - 2.0, 1.0),
             'closerear': (-0.9, mx.y + 2.0, 1.1),
         }
@@ -811,9 +1014,36 @@ class Car:
             d = tgt - Vector(pos)
             co.rotation_euler = d.to_track_quat('-Z', 'Y').to_euler()
             sc.camera = co
+            if nm == 'win34':
+                co.rotation_euler = (Vector((0, 0.1, 0.95)) - Vector(pos)).to_track_quat('-Z', 'Y').to_euler()
             sc.render.filepath = '%s/%s_%s.png' % (PREV_DIR, self.name, nm)
             bpy.ops.render.render(write_still=True)
             print('rendered', sc.render.filepath)
+        # roof-hidden views: strip the glass, light bar and everything above the belt
+        cz = self.s.get('cut_z')
+        if cz:
+            for ob in list(bpy.context.scene.objects):
+                if ob.name in ('glass', 'lightbar_red', 'lightbar_blue', 'mirrors', 'strobes'):
+                    ob.hide_render = True
+                if ob.name in ('body', 'livery_blue', 'livery_yellow', 'livery_dark', 'trim', 'chrome', 'lights', 'plates'):
+                    b = bmesh.new()
+                    b.from_mesh(ob.data)
+                    dead = [f for f in b.faces if f.calc_center_median().z > cz]
+                    bmesh.ops.delete(b, geom=dead, context='FACES')
+                    b.to_mesh(ob.data)
+                    b.free()
+            for nm, pos, tg in (('topcut', (0.35, 0.2, L * 1.6), (0, 0.1, 0.8)),
+                                ('sidecut', (L * 0.5, -L * 0.45, 2.7), (0, 0.2, 0.8)),
+                                ('rearcut', (-L * 0.35, L * 0.5, 2.3), (0, -0.2, 0.9))):
+                cd = bpy.data.cameras.new(nm)
+                cd.lens = 40
+                co = bpy.data.objects.new(nm, cd)
+                co.location = pos
+                bpy.context.collection.objects.link(co)
+                co.rotation_euler = (Vector(tg) - Vector(pos)).to_track_quat('-Z', 'Y').to_euler()
+                sc.camera = co
+                sc.render.filepath = '%s/%s_%s.png' % (PREV_DIR, self.name, nm)
+                bpy.ops.render.render(write_still=True)
 
 
 def sh(*a):

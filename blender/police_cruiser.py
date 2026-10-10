@@ -11,6 +11,7 @@ spec = dict(
     name='cruiser', L=4.25, W=1.70, wb=2.61, fo=0.88, r=0.30, rim_r=0.19, tyre_w=0.20, spokes=5,
     hw=0.78, tumble=0.03, inset=0.09, lean=0.19, crown=0.02,
     plan_rf=0.42, plan_rr=0.38, plan_minf=0.66, plan_minr=0.70,
+    cut_z=0.985,
     stations=[0.0, 0.03, 0.08, 0.16, 0.28, 0.45, 0.7, 1.0, 1.3, 1.55, 1.75, 1.95, 2.15, 2.35, 2.6, 2.9, 3.2, 3.4, 3.6, 3.8, 3.95, 4.05, 4.13, 4.19, 4.23, 4.25],
     ztop=[(0, 0.665), (0.05, 0.725), (0.2, 0.775), (0.5, 0.82), (0.9, 0.875), (1.3, 0.925), (1.55, 0.965), (1.95, 1.19),
           (2.35, 1.335), (2.8, 1.35), (3.3, 1.345), (3.7, 1.19), (4.02, 1.03), (4.15, 0.99), (4.22, 0.93), (4.25, 0.80)],
@@ -35,6 +36,7 @@ car.add_glass(
     windscreen=[(-0.63, 1.66), (0.63, 1.66), (0.565, 2.27), (-0.565, 2.27)],
     rear_window=[(-0.50, 3.38), (0.50, 3.38), (0.56, 4.0), (-0.56, 4.0)],
 )
+car.cut_windows()
 car.refresh_surface(('body', 'glass'))
 F = car.front_mapper(); Rr = car.rear_mapper(); T = car.top_mapper()
 FD, RD, TD = (0, 1, 0), (0, -1, 0), (0, 0, -1)
@@ -68,9 +70,9 @@ for x in (0.62, -0.62):
     car.patch('lights', 'HeadLight', rrect(x - 0.045, x + 0.045, 0.415, 0.465, 1), F, FD, offset=0.005, maxlen=0.022)
 
 # rear: tail lights, plate, bumper strip
-tl = [(0.42, 0.64), (0.70, 0.64), (0.765, 0.70), (0.765, 0.90), (0.70, 0.93), (0.44, 0.88)]
+tl = [(0.42, 0.64), (0.69, 0.64), (0.735, 0.70), (0.735, 0.88), (0.69, 0.91), (0.44, 0.87)]
 for pts in (tl, mirror_x(tl)):
-    car.surround(chaikin(pts, 1), Rr, RD, 1.12)
+    car.surround(chaikin(pts, 1), Rr, RD, 1.08)
     car.patch('lights', 'TailLight', chaikin(pts, 1), Rr, RD, offset=0.005, maxlen=0.022)
 car.patch('plates', 'Plate', rrect(-0.255, 0.255, 0.44, 0.55, 1), Rr, RD, offset=0.011, maxlen=0.035)
 car.patch('trim', 'Trim', rect(-0.72, 0.72, 0.335, 0.375), Rr, RD, offset=0.004, maxlen=0.05)
@@ -88,6 +90,12 @@ for sx in (1, -1):
 # roof light bar
 car.lightbar(2.80, 1.12, 0.28)
 
+I = dict(hw_in=0.71, seat_x=0.36, floor_z=0.22, dash_y0=1.80, dash_y1=2.14, dash_z=0.93, wheel_y=2.30, wheel_z=0.83,
+         seat_y=2.72, seat_z=0.44, back_h=0.50, cage_y=3.12, cage_top=1.20, bench_y=3.38, bench_z=0.44, bench_back_y=3.62,
+         bench_back_h=0.48, console_z=0.55, card_z0=0.42, card_z1=0.93, roof_z=1.31, roof_y0=2.35, roof_y1=3.28, roof_hw=0.50,
+         shelf_y1=3.95, shelf_z=0.90, shelf_hw=0.5)
+car.interior(I)
+car.officer('driver', -0.36, 2.72, 0.44, wheel=(2.30, 0.83))
 car.finalize()
 print('tris', car.tri_count())
 path = car.export()

@@ -117,7 +117,7 @@ b.box(roof, -9, -3, 8, 13, H + 0.35, H + 1.8)
 for (x0, x1, y0, y1) in ((-hx, hx, hy - 0.2, hy), (-hx, hx, -hy, -hy + 0.2), (-hx, -hx + 0.2, -hy, hy), (hx - 0.2, hx, -hy, hy)):
     b.box(cuB, x0, x1, y0, y1, H + 0.35, H + 0.9)
 # undulating louvre mesh screen in front of the +X coloured glass (stem + arm), plus under the soffit
-def screen_y(y): return hx + 1.0 + 0.9 * math.sin(y * 0.33) + 0.5 * math.sin(y * 0.9 + 1.0)
+def screen_y(y): return hx + 0.45 + 0.5 * math.sin(y * 0.33) + 0.25 * math.sin(y * 0.9 + 1.0)
 yy = -hy + 0.2
 while yy < hy - 0.1:
     x = screen_y(yy)

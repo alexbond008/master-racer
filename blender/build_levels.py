@@ -3,6 +3,7 @@
 # 2 upper 6 levels = open decks: pale concrete slab edge band + brown brick parapet + dark open slot, concrete columns, strip lights
 # 3 ramps between decks, stair/lift core cladded (blue-grey) with vertical glowing slits and 'PECKHAM LEVELS' sign
 # 4 rooftop: festoon lights on poles, small cafe/bar box with lit glazing (Frank's Cafe / Bold Tendencies), parapet
+# R2: continuous slab edges + concrete fins and top rail on every deck, ramps run along y near the +x end (visible in end elevation), numbered level signs on the core, 12 low-poly parked cars
 # 5 stepped brick parapet at roofline, stub columns for viewing platform
 import sys, os; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from lm_common import *
@@ -66,6 +67,11 @@ for p, u, n, L in edges(poly):
         z = z_open0 + k * FL_UP
         b.wrect(conc, (p[0], p[1], z - 0.45 if k else z_open0 - 0.45), u, n, L, 0.8, off=0.12)       # slab edge
         b.wrect(brick2, (p[0], p[1], z + 0.35), u, n, L, 1.05, off=0.1)                              # brick parapet
+        b.wrect(conc, (p[0], p[1], z + 1.35), u, n, L, 0.22, off=0.18)                               # continuous top rail
+        nf = max(1, int(L // 3.2)); fw_ = L / nf
+        for i in range(nf):
+            fx0, fy0 = p[0] + u[0] * fw_ * i + u[0] * 0.5, p[1] + u[1] * fw_ * i + u[1] * 0.5
+            b.prism(conc, [(fx0, fy0), (fx0 + u[0] * 0.22, fy0 + u[1] * 0.22), (fx0 + u[0] * 0.22 + n[0] * 0.3, fy0 + u[1] * 0.22 + n[1] * 0.3), (fx0 + n[0] * 0.3, fy0 + n[1] * 0.3)], z + 0.35, z + FL_UP - 0.1)
         nc = max(1, int(L // 6.0)); cw = L / nc
         for i in range(nc + 1):
             px_, py_ = p[0] + u[0] * cw * i - n[0] * 0.3, p[1] + u[1] * cw * i - n[1] * 0.3
@@ -89,12 +95,13 @@ for k in range(N_UP):
         for y in (-7.0, 7.0):
             if inside(poly, x, y, 3.0):
                 b.quad(strip, (x - 0.1, y - 5, zc), (x - 0.1, y + 5, zc), (x + 0.1, y + 5, zc), (x + 0.1, y - 5, zc))
-# ramps (sloped slab) between open levels, at alternating sides
+# ramps (sloped slab) running along y near the +x end, alternating direction, visible from the end elevation
 for k in range(N_UP - 1):
     z = z_open0 + k * FL_UP + 0.35
-    sgn = 1 if k % 2 == 0 else -1
-    xa, xb = (-18, 6) if sgn > 0 else (6, -18)
-    b.beam(conc_d, (xa, -9 * sgn * 0 + 4.5, z), (xb, 4.5, z + FL_UP), w=5.0, h=0.35)
+    ya, yb = (-9.0, 5.0) if k % 2 == 0 else (5.0, -9.0)
+    b.beam(conc_d, (12.0, ya, z), (12.0, yb, z + FL_UP), w=5.4, h=0.4)
+    for sx in (-2.8, 2.8):
+        b.beam(conc, (12.0 + sx, ya, z + 0.6), (12.0 + sx, yb, z + FL_UP + 0.6), w=0.25, h=1.0)
 # ---- roof extras
 zr = z_roof + 0.35
 b.prism(conc, poly, z_roof, zr, bottom=False)
@@ -141,8 +148,40 @@ for (x, y) in poles:
 # low planter / seating blocks
 for (x, y) in ((-15, 0), (12, -2), (16, 6)):
     if inside(poly, x, y, 3): b.box(conc_d, x - 1.5, x + 1.5, y - 1.0, y + 1.0, zr, zr + 0.8)
+# parked cars (low-poly boxes) on a few decks
+carcols = [mat('Car_%d' % i, c, 0.35, 0.5) for i, c in enumerate([(180, 30, 36), (40, 70, 160), (190, 192, 196), (235, 235, 232), (28, 28, 32), (230, 130, 30), (60, 120, 80)])]
+tail = mat('Emit_Tail', (255, 40, 30), 0.3, emit=(255, 40, 30), strength=4.0)
+glassm = mat('Car_Glass', (24, 30, 38), 0.1, 0.6)
+spots = []
+for k in (0, 1, 3, 5):
+    for _ in range(40):
+        cx_ = rng.uniform(-22, 22); cy_ = rng.choice([-9.0, -3.0, 3.0, 9.0, 15.0, -15.0]); 
+        if abs(cx_ - 12) < 5.5 and -11 < cy_ < 7: continue
+        if not inside(poly, cx_, cy_, 3.0): continue
+        if any(kk == k and abs(cx_ - xx) < 5.0 and abs(cy_ - yy) < 2.5 for kk, xx, yy in spots): continue
+        if len([1 for kk, _, _ in spots if kk == k]) >= 3: break
+        spots.append((k, cx_, cy_))
+print("CARS", len(spots))
+for i, (k, cx_, cy_) in enumerate(spots[:12]):
+    z = z_open0 + k * FL_UP + 0.35
+    m_ = carcols[i % len(carcols)]
+    b.box(m_, cx_ - 2.1, cx_ + 2.1, cy_ - 0.9, cy_ + 0.9, z + 0.25, z + 0.85)
+    b.box(glassm, cx_ - 1.0, cx_ + 1.1, cy_ - 0.8, cy_ + 0.8, z + 0.85, z + 1.4)
+    b.box(m_, cx_ - 0.95, cx_ + 1.05, cy_ - 0.75, cy_ + 0.75, z + 1.4, z + 1.45)
+    b.box(tail, cx_ - 2.12, cx_ - 2.1, cy_ - 0.8, cy_ - 0.4, z + 0.55, z + 0.7); b.box(tail, cx_ - 2.12, cx_ - 2.1, cy_ + 0.4, cy_ + 0.8, z + 0.55, z + 0.7)
+    for wx in (-1.3, 1.3):
+        for wy in (-0.92, 0.92):
+            b.box(steel, cx_ + wx - 0.3, cx_ + wx + 0.3, cy_ + wy - 0.1, cy_ + wy + 0.1, z, z + 0.6)
+# level number plates on the core front face
+for k in range(N_UP):
+    zz = z_open0 + k * FL_UP + 0.9
+    b.wrect(dark, (cx - 1.4, cy - 3.2, zz - 0.15), (1, 0), (0, -1), 2.8, 1.3, off=0.13)
 objs = b.build('levels')
-t = text_mesh('PECKHAM LEVELS', 1.0, sign, Frame(OX, OY, YAW).p(cx, cy - 3.3, z_roof - 1.5), rot=(math.radians(90), 0, math.radians(YAW)), extrude=0.15, name='levels_sign')
+sign_w = mat('Emit_LevelNo', (255, 255, 255), 0.4, emit=(255, 255, 255), strength=4.5)
+for k in range(N_UP):
+    zz = z_open0 + k * FL_UP + 0.9
+    text_mesh('L%d' % (N_LO + k), 1.0, sign_w, Frame(OX, OY, YAW).p(cx, cy - 3.4, zz), rot=(math.radians(90), 0, math.radians(YAW)), extrude=0.06, name='level_no_%d' % (N_LO + k))
+t = text_mesh('PECKHAM LEVELS', 1.0, sign, Frame(OX, OY, YAW).p(cx, cy - 3.3, z_roof + 3.2), rot=(math.radians(90), 0, math.radians(YAW)), extrude=0.15, name='levels_sign')
 objs = [o for o in bpy.data.objects if o.type == 'MESH']
 export('levels', 'Peckham multi-storey car park / Peckham Levels: 4 brick-clad lower levels + 6 open concrete/brick-parapet decks (~31 m), ramps, '
        'clad stair core with PECKHAM LEVELS sign, rooftop festoon lights + bar. Rotated -28.5 deg to match OSM footprint.')
