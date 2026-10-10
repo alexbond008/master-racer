@@ -74,6 +74,9 @@
   #customs .stats { margin:10px 0 0; font-size:12px; letter-spacing:2px; color:#999; }
   #customs .stats div { display:flex; justify-content:space-between; } #customs .stats .up { color:#3ddc84; }
   #cash { position:absolute; left:50%; top:72px; transform:translateX(-50%); font-size:15px; letter-spacing:3px; color:#3ddc84; text-shadow:0 0 8px #000; }
+  #radio { position:absolute; left:50%; bottom:44px; transform:translateX(-50%); font-size:15px; letter-spacing:4px; color:var(--hot); text-shadow:0 0 8px #000; opacity:0; transition:opacity .5s; white-space:nowrap; }
+  #radio.show { opacity:1; }
+  #title small { position:absolute; bottom:14px; color:#666; letter-spacing:1px; font-size:12px; }
   #bigmap { position:fixed; inset:0; display:none; background:rgba(0,0,0,.86); align-items:center; justify-content:center; flex-direction:column; pointer-events:auto; }
   #bigmap.open { display:flex; }
   #bigmap canvas { border:3px solid var(--hot); box-shadow:0 0 30px rgba(255,180,0,.4); cursor:crosshair; max-width:92vmin; max-height:92vmin; }
@@ -102,11 +105,12 @@
   <div id="hpWrap"><div class="lbl">DAMAGE</div><div class="bar"><div id="hp"></div></div></div>
   <div id="race"><div class="pos">1ST</div><div class="gap"></div><div class="cp"></div><div class="time"></div></div>
   <div id="prompt"></div>
+  <div id="radio"></div>
   <div id="guide"></div>
   <div id="district"></div>
   <div id="minimapWrap"><canvas id="minimap" width="440" height="440"></canvas></div>
   <div id="speedoWrap"><canvas id="speedo" width="520" height="520"></canvas></div>
-  <div id="help">W/S throttle·brake &nbsp; A/D steer &nbsp; SPACE handbrake &nbsp; SHIFT nitro &nbsp; M map &nbsp; C camera &nbsp; 1-4 weather &nbsp; TAB garage &nbsp; ENTER challenge &nbsp; R reset</div>
+  <div id="help">W/S throttle·brake &nbsp; A/D steer &nbsp; SPACE handbrake &nbsp; SHIFT nitro &nbsp; M map &nbsp; C camera &nbsp; 1-4 weather &nbsp; TAB garage &nbsp; Q radio &nbsp; ENTER challenge &nbsp; R reset</div>
 </div>
 <div id="bigmap"><canvas id="bigmapCanvas" width="900" height="900"></canvas><p>CLICK TO SET ROUTE &nbsp;·&nbsp; M TO CLOSE &nbsp;·&nbsp; X CLEARS ROUTE</p></div>
 <div id="dialog" class="overlay"><div class="card" id="dialogCard"></div></div>
@@ -119,6 +123,7 @@
   <h2>SOUTH LONDON</h2>
   <p>You left Zamość in a Fiat 126. You have a Maluch, a map and nothing to lose. Beat London's best, take their cars, and stay ahead of the law.</p>
   <div class="go">PRESS ENTER</div>
+  <small>Map data © OpenStreetMap contributors (ODbL) · Car models: Kenney (CC0)</small>
 </div>
 <script type="module" src="/src/main.js"></script>
 </body>

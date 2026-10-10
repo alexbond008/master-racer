@@ -13,9 +13,9 @@ npm run dev     # http://localhost:5173  (add ?reset to wipe the save, ?dev for 
 Driving + nitro, weather that changes grip (rain / thunderstorm / snow), HUD + minimap + route guidance, GTA-style 1-5 star police
 (patrols, pursuit AI, roadblocks, helicopter, evade/busted), 5 pink-slip races, garage + car unlocks, Master Customs (paint, rims,
 spoilers, body kits, livery, neon, performance tiers), London landmarks + street furniture, civilian traffic.
-Work in progress: real OpenStreetMap road layout (replacing the grid) and the audio/music system.
+Real OpenStreetMap road layout (A23 spine, Rye Lane, parks) and a fully procedural audio system: per-car engines (turbo, burble, scream), tyres, nitro, sirens, rain/thunder, impacts, plus a radio (Q) with original Boom Bap / UK Drill / Rock tracks and a chase track that builds with the wanted level.
 
-Controls: W/S throttle-brake, A/D steer, Space handbrake, Shift nitro, M map, C camera, 1-4 weather, Tab garage, Enter interact. Gamepad supported.
+Controls: W/S throttle-brake, A/D steer, Space handbrake, Shift nitro, M map, C camera, 1-4 weather, Tab garage, Q radio, -/= volume, Enter interact. Gamepad supported.
 
 See `SPEC.md`, `research/`, and `CREDITS.md`.
 

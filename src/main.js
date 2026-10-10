@@ -17,6 +17,7 @@ import { PoliceSystem } from './police.js';
 import { carVsCar } from './ai.js';
 import { RaceSystem, RIVALS } from './races.js';
 import { loadSave, saveGame } from './progress.js';
+import { GameAudio } from './audio.js';
 import { showDialog, hideDialog, showGarage, hideGarage, showCustoms, hideCustoms } from './menus.js';
 import { applyMods, getMods, modCost, cycle, ROWS } from './customs.js';
 
@@ -37,7 +38,12 @@ scene.environmentIntensity = 0.45;
 const netData = await (await fetch('/data/southlondon.json')).json();
 const world = buildWorld(scene, netData);
 const weather = new Weather(scene, hemi, moon, world.groundMats, $('flash'));
+weather.onThunder = () => audio.thunder();
 const input = new Input();
+const audio = new GameAudio();
+addEventListener('keydown', () => audio.start());
+addEventListener('pointerdown', () => audio.start());
+audio.onRadio = i => { const el = $('radio'); el.textContent = '♪ ' + i.station + (i.track ? '  —  ' + i.track : ''); el.classList.add('show'); clearTimeout(audio._rt); audio._rt = setTimeout(() => el.classList.remove('show'), 4500); };
 const hud = new Hud(world);
 
 // ---------- composer (MSAA + bloom)
@@ -120,6 +126,7 @@ const shopPos = [shopNr.px, shopNr.pz];
 }
 const shopAt = p => Math.hypot(p.x - shopPos[0], p.z - shopPos[1]) < 13 && p.speed < 9;
 function openCustoms() {
+  audio.sting('open');
   const id = game.carId, def = CARS[id], saved = getMods(def, game.save.mods?.[id]);
   menu = { type: 'customs', sel: 0, id, saved, work: getMods(def, saved), ang: 0 };
   renderCustoms();
@@ -129,8 +136,8 @@ function closeCustoms(buy) {
   const id = menu.id, def = CARS[id];
   if (buy) {
     const cost = modCost(def, menu.saved, menu.work);
-    if (cost > game.cash) { toast('NOT ENOUGH CASH'); return; }
-    game.cash -= cost; (game.save.mods ||= {})[id] = menu.work; toast(cost ? `PURCHASED  -$${cost}` : 'NO CHANGES');
+    if (cost > game.cash) { audio.sting('deny'); toast('NOT ENOUGH CASH'); return; }
+    game.cash -= cost; (game.save.mods ||= {})[id] = menu.work; toast(cost ? `PURCHASED  -$${cost}` : 'NO CHANGES'); if (cost) audio.sting('buy');
   }
   hideCustoms(); menu = null; setCar(id); persist();
 }
@@ -143,10 +150,12 @@ const persist = () => { game.save.cash = game.cash; game.save.carId = game.carId
 const carName = id => CARS[id].name;
 function raceWager() { return game.carId !== 'fiat126' && !RIVALS[game.save.raceIdx]?.slipFree ? game.carId : null; }
 const raceHooks = {
-  banner: (...a) => banner(...a), toast: t => toast(t),
+  banner: (...a) => { if (/^[123]$/.test(a[0])) audio.sting('count'); else if (a[0] === 'GO!') audio.sting('go'); banner(...a); },
+  toast: t => { if (/^(CHECKPOINT|FINISH)/.test(t)) audio.sting('checkpoint'); toast(t); },
   placePlayer: (x, z, th) => { placePlayerPose(x, z, th); game.hp = 100; game.phys.nitro = 100; },
   onEnd: (result, st) => {
     const r = st.r, save = game.save;
+    audio.sting(result === 'win' ? 'win' : 'lose');
     if (result === 'win') {
       if (!save.owned.includes(r.car)) save.owned.push(r.car);
       save.raceIdx = st.i + 1; game.cash += 1000 * (st.i + 1);
@@ -170,6 +179,7 @@ const raceHooks = {
 };
 function respawnAtPin(i) { const po = races.startPose(i); placePlayerPose(po.x, po.z, po.th); }
 function openDialog(i) {
+  audio.sting('open');
   const info = races.routeInfo(i), r = RIVALS[i];
   menu = { type: 'dialog', i, wager: raceWager(), info };
   showDialog(i, { wager: menu.wager, len: info.len, weather: WEATHER[r.weather].label });
@@ -187,9 +197,10 @@ function startRace() {
 function endRaceNow(result) { if (races.state && races.state.stage !== 'done') races.end(result, raceHooks); }
 
 police.onEvent = (type, d) => {
+  if (type === 'wanted') { audio.sting('wanted'); }
   if (type === 'wanted') { toast(starText(d.stars) + ' WANTED'); if (d.first) banner('SPOTTED', '#4da6ff', 'POLICE ARE AFTER YOU'); }
-  else if (type === 'escaped') banner('ESCAPED', '#3ddc84', 'YOU LOST THE POLICE');
-  else if (type === 'busted') { if (races.state) { endRaceNow('lose'); return; } game.cash -= 300; banner('BUSTED', '#ff3b3b', 'FINE $300'); respawnPlayer(); persist(); }
+  else if (type === 'escaped') { audio.sting('escaped'); banner('ESCAPED', '#3ddc84', 'YOU LOST THE POLICE'); }
+  else if (type === 'busted') { audio.sting('busted'); if (races.state) { endRaceNow('lose'); return; } game.cash -= 300; banner('BUSTED', '#ff3b3b', 'FINE $300'); respawnPlayer(); persist(); }
   else if (type === 'wreck') toast('UNIT DOWN');
 };
 
@@ -247,7 +258,7 @@ function toast(t) { const e = $('toast'); e.textContent = t; e.classList.add('sh
 // ---------- main loop
 const STEP = 1 / 120;
 let acc = 0, last = performance.now(), shake = 0;
-const camTarget = new THREE.Vector3();
+const camTarget = new THREE.Vector3(), camDir = new THREE.Vector3();
 let started = false, startAt = 0;
 addEventListener('keydown', e => { if (e.code === 'Enter' && !started) { started = true; startAt = performance.now(); game.started = true; $('title').style.display = 'none'; } });
 
@@ -258,6 +269,9 @@ function frame(now) {
 
   input.update(dt);
   if (input.was('KeyM')) hud.toggleMap();
+  if (input.was('KeyQ')) audio.nextStation();
+  if (input.was('Minus')) { audio.setVolume(audio.vol - 0.1); toast('VOLUME ' + Math.round(audio.vol * 100) + '%'); }
+  if (input.was('Equal')) { audio.setVolume(audio.vol + 0.1); toast('VOLUME ' + Math.round(audio.vol * 100) + '%'); }
   if (input.was('KeyX')) { game.route = null; hud.setRoute(null, null); setBeacon(null); arrowG.visible = false; }
   if (input.was('KeyC')) game.camMode = (game.camMode + 1) % 3;
   if (location.search.includes('dev') && input.was('KeyN')) { const i = (CAR_ORDER.indexOf(game.carId) + 1) % CAR_ORDER.length; setCar(CAR_ORDER[i]); toast(CARS[CAR_ORDER[i]].name); }
@@ -310,6 +324,7 @@ function frame(now) {
   for (const a of agents) {
     const imp = carVsCar(p, a.phys);
     if (imp > 1.5) {
+      audio.impact(imp);
       shake = Math.min(1, shake + imp * 0.04);
       const rel = Math.sqrt((a.def.mass || 1300) / (p.def.mass || 1300));
       if (a.kind === 'cop') {
@@ -331,6 +346,7 @@ function frame(now) {
   }
   void wasStars;
   if (p.lastImpact > 0) {
+    audio.impact(p.lastImpact);
     shake = Math.min(1, shake + p.lastImpact * 0.05);
     if (p.lastImpact > 6) { game.hp -= (p.lastImpact - 6) * 1.6; if (police.roadblocks.some(r => Math.hypot(r.x - p.x, r.z - p.z) < 14)) police.offence('roadblock', p); }
     p.lastImpact = 0;
@@ -410,11 +426,18 @@ function frame(now) {
     police: { stars: police.stars, seen: police.seen, evade: police.evadeProgress, bust: police.bustedT / 2.2 },
   });
 
+  camera.getWorldDirection(camDir);
+  audio.update(dt, {
+    rpm: p.rpm, throttle: ctrl.throttle, speed: spd, slip: p.slip, braking: p.braking, nitro: p.nitroOn, gear: p.gear, carId: game.carId,
+    rain: weather.cur.rain, snow: weather.cur.snow, paused: !started || !!menu || hud.bigOpen, stars: police.stars,
+    units: police.units.map(u => ({ x: u.phys.x, z: u.phys.z, role: u.role })), heli: police.heli,
+    cam: { x: camera.position.x, z: camera.position.z, th: Math.atan2(camDir.x, camDir.z) },
+  });
   composer.render();
   input.endFrame();
 }
 requestAnimationFrame(frame);
 
 // debug hook
-window.__game = { races, get menu() { return menu; }, persist, composer, bloom, traffic, police, game, world, weather, scene, camera, renderer, setCar, input, hud, start: () => { started = true; game.started = true; $('title').style.display = 'none'; } };
+window.__game = { audio, races, get menu() { return menu; }, persist, composer, bloom, traffic, police, game, world, weather, scene, camera, renderer, setCar, input, hud, start: () => { started = true; game.started = true; $('title').style.display = 'none'; } };
 void MPH;
