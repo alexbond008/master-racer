@@ -30,6 +30,7 @@ export function buildKenneyCar(def, opts = {}) {
 
   const wheels = [];
   inner.traverse(o => {
+    if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
     if (o.name === 'body' && opts.color) {
       o.traverse(m => { if (m.isMesh) { m.material = m.material.clone(); m.material.color.set(opts.color); } });
     }

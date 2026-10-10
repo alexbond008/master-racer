@@ -69,6 +69,13 @@ export function buildFurniture(group, net, rnd, { inPark, occ, addTree }) {
   inst(lampPole, new THREE.MeshStandardMaterial({ color: 0x22252a, roughness: 0.7 }), lamps, (o, l) => o.position.set(l[0], 0, l[1]));
   inst(new THREE.SphereGeometry(0.34, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(4.2, 2.6, 0.8) }), lamps, (o, l) => o.position.set(l[0], 7.1, l[1]));
 
+  // warm light pool on the ground under every street lamp (cheap fake of sodium light)
+  {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 64; const x = cv.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, 'rgba(255,255,255,0.9)'); g.addColorStop(0.45, 'rgba(255,255,255,0.35)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+    const pg = new THREE.PlaneGeometry(15, 15); pg.rotateX(-Math.PI / 2);
+    inst(pg, new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), color: new THREE.Color(1.0, 0.5, 0.18).multiplyScalar(0.26), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -5 }), lamps, (o, l) => o.position.set(l[0], 0.08, l[1]));
+  }
   const flat = new THREE.PlaneGeometry(1, 1); flat.rotateX(-Math.PI / 2);
   inst(flat, new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -4 }), stripes, (o, s) => { o.position.set(s[0], 0.04, s[1]); o.rotation.y = s[2]; o.scale.set(0.5, 1, 3.2); });
   const bp = new THREE.CylinderGeometry(0.07, 0.07, 3, 6); bp.translate(0, 1.5, 0);

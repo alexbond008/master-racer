@@ -2,7 +2,8 @@
 # 1 four-storey Venetian-Renaissance store, grey/cream stone (NOT red - photos show pale grey-cream stone, with red brick only on neighbours/back walls)
 # 2 rusticated dark-fronted ground floor with big lit shop windows and a cream fascia sign; strong stone string courses between floors
 # 3 upper floors: paired round-arched windows with moulded surrounds + pilasters, wide bracketed cornice and parapet
-# 4 slim square clock tower rising from the centre of the front roofline: balustraded balcony, clock face (emissive) on 3 faces, cornice, small hipped cap + weathervane
+# R2: tower now follows St Mark's Square Torre dell'Orologio: blue+gold dial in arched recess, balustraded terrace, arched belfry, cornice w/ obelisks, dome+finial
+# 4 (R1) slim square clock tower rising from the centre of the front roofline: balustraded balcony, clock face (emissive) on 3 faces, cornice, small hipped cap + weathervane
 # 5 plan = wedge-shaped corner site (OSM: 13 x 29 m); front (High St) faces -Y, long Rye Lane side faces -X
 import sys, os; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from lm_common import *
@@ -22,6 +23,9 @@ hand = mat('Clock_Hands', (20, 20, 22), 0.5)
 roofm = mat('Roof_Lead', (84, 92, 96), 0.5, 0.5)
 signm = mat('Emit_Sign', (250, 240, 210), 0.4, emit=(255, 235, 190), strength=3.0)
 steel = mat('Metal', (40, 42, 46), 0.5, 0.7)
+dial = mat('Emit_Dial_Blue', (24, 52, 150), 0.4, emit=(40, 80, 220), strength=2.6)
+gold = mat('Emit_Gold', (230, 180, 60), 0.3, 0.8, emit=(255, 190, 60), strength=3.2)
+dome_m = mat('Dome_Copper', (96, 150, 130), 0.4, 0.5)
 P = [(7.16, -8.1), (-5.77, -16.42), (-3.67, 12.18), (0.13, 12.6), (2.15, -0.26)]
 cx = sum(p[0] for p in P) / 5; cy = sum(p[1] for p in P) / 5
 H0, H1, H2, H3 = 4.6, 4.0, 3.8, 3.4
@@ -62,8 +66,26 @@ def facade(i, bayw, pairs=True, sign=False, lit=0.45):
     nbr = int(L / 0.8)
     for k in range(nbr):
         b.wrect(stone_d, (p[0] + u[0] * (0.2 + k * 0.8), p[1] + u[1] * (0.2 + k * 0.8), ZE - 1.15), u, n, 0.3, 0.5, off=0.32)
-    # parapet balusters band
-    b.wrect(cream, (p[0], p[1], ZE + 0.5), u, n, L, 0.8, off=0.0)
+    # balustraded parapet: rail + posts, pinnacles at bay ends
+    b.wrect(cream, (p[0], p[1], ZE + 0.5), u, n, L, 0.25, off=0.05)
+    b.wrect(cream, (p[0], p[1], ZE + 1.1), u, n, L, 0.2, off=0.05)
+    npost = int(L / 0.4)
+    for k in range(npost):
+        b.wrect(stone, (p[0] + u[0] * (0.1 + k * 0.4), p[1] + u[1] * (0.1 + k * 0.4), ZE + 0.7), u, n, 0.18, 0.4, off=0.05)
+    nb = max(1, round(L / bayw)); bw = L / nb
+    for k in range(nb + 1):
+        fx, fy = p[0] + u[0] * bw * k, p[1] + u[1] * bw * k
+        b.box(cream, fx - 0.3, fx + 0.3, fy - 0.3, fy + 0.3, ZE + 0.5, ZE + 1.5)
+        b.pyramid(cream, fx - 0.25, fx + 0.25, fy - 0.25, fy + 0.25, ZE + 1.5, ZE + 2.4)
+    # balcony bands under 2nd-floor windows + keystone blocks over arches
+    b.wrect(cream, (p[0], p[1], H0 + 0.1), u, n, L, 0.3, off=0.2)
+    for k in range(nb):
+        for j in range(2 if pairs else 1):
+            ww = (bw - 1.5) / 2 if pairs else bw - 1.4
+            xx = p[0] + u[0] * (bw * k + 0.7 + j * (ww + 0.1) + ww / 2 - 0.12) 
+            yy = p[1] + u[1] * (bw * k + 0.7 + j * (ww + 0.1) + ww / 2 - 0.12)
+            for z in (H0 + H1 - 0.7, H0 + H1 + H2 - 0.7):
+                b.wrect(cream, (xx, yy, z), u, n, 0.24, 0.3, off=0.2)
     return p, u, n, L
 
 fa = facade(0, 3.9, pairs=True, sign=True)        # front (High Street) facade A->B
@@ -83,44 +105,90 @@ for i in (2, 3):
 pf, uf, nf, Lf = fa
 yaw = math.atan2(uf[1], uf[0])
 sx = pf[0] + uf[0] * Lf * 0.5 + nf[0] * 0.35; sy = pf[1] + uf[1] * Lf * 0.5 + nf[1] * 0.35
-# --- clock tower on the roof, centred on the front facade, set back 3.4 m
-tcx = pf[0] + uf[0] * Lf * 0.5 - nf[0] * 3.6; tcy = pf[1] + uf[1] * Lf * 0.5 - nf[1] * 3.6
+# --- Jarvis clock tower (after St Mark's, Venice) on the roof, centred on the front facade
+tcx = pf[0] + uf[0] * Lf * 0.5 - nf[0] * 1.9; tcy = pf[1] + uf[1] * Lf * 0.5 - nf[1] * 1.9
 ang = math.degrees(yaw)
 b.frame(tcx, tcy, ang)
-tw = 3.9; h = tw / 2
+tw = 3.6; h = tw / 2
 z0 = ZE + 0.5
-b.box(stone, -h - 0.4, h + 0.4, -h - 0.4, h + 0.4, z0, z0 + 0.7)                     # plinth
-b.box(stone, -h, h, -h, h, z0 + 0.7, z0 + 11.0)                                      # shaft
-# quoin / panel lines
-for zz in (z0 + 3.6, z0 + 9.2):
-    b.box(cream, -h - 0.15, h + 0.15, -h - 0.15, h + 0.15, zz, zz + 0.4)
-# balcony (balustrade) on the front face
-bz = z0 + 2.2
-b.box(cream, -1.7, 1.7, -h - 1.0, -h, bz, bz + 0.35)
-for k in range(7):
-    b.box(cream, -1.55 + k * 0.5, -1.4 + k * 0.5, -h - 0.95, -h - 0.8, bz + 0.35, bz + 1.15)
-b.box(cream, -1.7, 1.7, -h - 1.0, -h - 0.8, bz + 1.15, bz + 1.3)
-b.warch(dark, (-0.6, -h, bz + 0.35), (1, 0), (0, -1), 1.2, 2.2, rise=0.6, off=0.05)   # door/window behind balcony
-# clock stage
-cz = z0 + 6.4; cr = 1.05
-for (cx_, cy_, ux, uy, nx, ny) in ((0, -h, 1, 0, 0, -1), (0, h, -1, 0, 0, 1), (-h, 0, 0, -1, -1, 0), (h, 0, 0, 1, 1, 0)):
-    seg = 16
-    pts = [(cx_ + nx * 0.06 + ux * cr * math.cos(2 * math.pi * i / seg), cy_ + ny * 0.06 + uy * cr * math.cos(2 * math.pi * i / seg), cz + cr * math.sin(2 * math.pi * i / seg)) for i in range(seg)]
-    e1 = Vector(pts[1]) - Vector(pts[0]); e2 = Vector(pts[2]) - Vector(pts[1])
-    # winding must give outward normal in WORLD; local frame is rotated but handedness preserved -> test in local
-    if e1.cross(e2).dot(Vector((nx, ny, 0))) < 0: pts = pts[::-1]
-    b.poly(clockm, pts)
-    b.quad(hand, (cx_ + nx * 0.1, cy_ + ny * 0.1, cz), (cx_ + nx * 0.1, cy_ + ny * 0.1, cz + 1.0), (cx_ + nx * 0.1 + ux * 0.09, cy_ + ny * 0.1 + uy * 0.09, cz + 1.0), (cx_ + nx * 0.1 + ux * 0.09, cy_ + ny * 0.1 + uy * 0.09, cz))
-    b.quad(hand, (cx_ + nx * 0.1, cy_ + ny * 0.1, cz), (cx_ + nx * 0.1 + ux * 0.8, cy_ + ny * 0.1 + uy * 0.8, cz), (cx_ + nx * 0.1 + ux * 0.8, cy_ + ny * 0.1 + uy * 0.8, cz + 0.09), (cx_ + nx * 0.1, cy_ + ny * 0.1, cz + 0.09))
-# arched louvred belfry slots above clock on 4 faces
-for (cx_, cy_, ux, uy, nx, ny) in ((0, -h, 1, 0, 0, -1), (0, h, -1, 0, 0, 1), (-h, 0, 0, -1, -1, 0), (h, 0, 0, 1, 1, 0)):
-    b.warch(dark, (cx_ + ux * -0.45 * 1 + 0, cy_ + uy * -0.45, z0 + 8.3), (ux, uy), (nx, ny), 0.9, 1.9, rise=0.45, off=0.06)
-# top cornice + cap
-b.box(cream, -h - 0.5, h + 0.5, -h - 0.5, h + 0.5, z0 + 11.0, z0 + 11.5)
-b.box(stone, -h - 0.3, h + 0.3, -h - 0.3, h + 0.3, z0 + 11.5, z0 + 11.9)
-b.pyramid(roofm, -h - 0.3, h + 0.3, -h - 0.3, h + 0.3, z0 + 11.9, z0 + 14.0)
-b.beam(steel, (0, 0, z0 + 14.0), (0, 0, z0 + 16.0), w=0.08, n=5)
-b.beam(steel, (-0.6, 0, z0 + 15.4), (0.6, 0, z0 + 15.4), w=0.06, h=0.5)
+FACES = ((0, -h, 1, 0, 0, -1), (0, h, -1, 0, 0, 1), (-h, 0, 0, -1, -1, 0), (h, 0, 0, 1, 1, 0))
+b.box(stone, -h - 0.5, h + 0.5, -h - 0.5, h + 0.5, z0, z0 + 0.8)                    # plinth
+b.box(cream, -h - 0.65, h + 0.65, -h - 0.65, h + 0.65, z0 + 0.8, z0 + 1.0)
+b.box(stone, -h, h, -h, h, z0 + 1.0, z0 + 8.0)                                       # stage 1 shaft
+# corner quoins
+for sx in (-1, 1):
+    for sy in (-1, 1):
+        for q in range(7):
+            b.box(cream, sx * h - 0.2 * (1 if sx > 0 else 1) - (0.2 if sx > 0 else 0) + (0.0 if sx > 0 else 0.0), sx * h + (0.2 if sx < 0 else 0.0) , sy * h - (0.2 if sy > 0 else 0), sy * h + (0.2 if sy < 0 else 0), z0 + 1.0 + q * 1.1, z0 + 1.0 + q * 1.1 + 0.6) if False else None
+cz = z0 + 4.9; cr = 1.0
+def dial_face(cx_, cy_, ux, uy, nx, ny):
+    def Pn(a, z, off): return (cx_ + ux * a + nx * off, cy_ + uy * a + ny * off, z)
+    def disc(m, r, off, seg=20):
+        pts = [Pn(r * math.cos(2 * math.pi * i / seg), cz + r * math.sin(2 * math.pi * i / seg), off) for i in range(seg)]
+        e1 = Vector(pts[1]) - Vector(pts[0]); e2 = Vector(pts[2]) - Vector(pts[1])
+        if e1.cross(e2).dot(Vector((nx, ny, 0))) < 0: pts = pts[::-1]
+        b.poly(m, pts)
+    # blue arched panel with stone surround
+    b.warch(cream, (cx_ + ux * -1.5 + nx * 0.06, cy_ + uy * -1.5 + ny * 0.06, z0 + 1.6) if False else Pn(-1.5, z0 + 1.6, 0.05), (ux, uy), (nx, ny), 3.0, 5.9, rise=1.5, off=0.0)
+    b.warch(dial, Pn(-1.3, z0 + 1.8, 0.08), (ux, uy), (nx, ny), 2.6, 5.6, rise=1.3, off=0.0)
+    disc(gold, cr + 0.12, 0.12); disc(dial, cr, 0.14); 
+    for k in range(12):                       # gold hour ticks
+        a = 2 * math.pi * k / 12
+        r0, r1 = cr * 0.78, cr * 0.95
+        ca, sa = math.cos(a), math.sin(a)
+        w = 0.05
+        pts = [Pn(r0 * ca - w * sa, cz + r0 * sa + w * ca, 0.16), Pn(r1 * ca - w * sa, cz + r1 * sa + w * ca, 0.16), Pn(r1 * ca + w * sa, cz + r1 * sa - w * ca, 0.16), Pn(r0 * ca + w * sa, cz + r0 * sa - w * ca, 0.16)]
+        e1 = Vector(pts[1]) - Vector(pts[0]); e2 = Vector(pts[2]) - Vector(pts[1])
+        if e1.cross(e2).dot(Vector((nx, ny, 0))) < 0: pts = pts[::-1]
+        b.poly(gold, pts)
+    for (ax, az, bx_, bz) in ((0, 0, 0.1, 0.75), (0, 0, 0.55, -0.2)):         # hands (gold)
+        pts = [Pn(ax - 0.05, cz + az, 0.18), Pn(bx_ - 0.05, cz + bz, 0.18), Pn(bx_ + 0.05, cz + bz, 0.18), Pn(ax + 0.05, cz + az, 0.18)]
+        e1 = Vector(pts[1]) - Vector(pts[0]); e2 = Vector(pts[2]) - Vector(pts[1])
+        if e1.cross(e2).dot(Vector((nx, ny, 0))) < 0: pts = pts[::-1]
+        b.poly(gold, pts)
+    rr = random.Random(int(cx_ * 7 + cy_ * 13 + 5))
+    for k in range(9):                        # gold stars on blue field above and below dial
+        a = rr.uniform(-0.9, 0.9); zz = rr.choice([z0 + 2.4 + rr.uniform(0, 0.5), z0 + 6.9 + rr.uniform(0, 0.6)])
+        if zz > cz - 1.3 and zz < cz + 1.3: zz = z0 + 7.3
+        pts = [Pn(a - 0.08, zz, 0.16), Pn(a + 0.08, zz, 0.16), Pn(a + 0.08, zz + 0.16, 0.16), Pn(a - 0.08, zz + 0.16, 0.16)]
+        e1 = Vector(pts[1]) - Vector(pts[0]); e2 = Vector(pts[2]) - Vector(pts[1])
+        if e1.cross(e2).dot(Vector((nx, ny, 0))) < 0: pts = pts[::-1]
+        b.poly(gold, pts)
+for f in FACES: dial_face(*f)
+# cornice, terrace with balustrade
+zc = z0 + 8.0
+b.box(cream, -h - 0.6, h + 0.6, -h - 0.6, h + 0.6, zc, zc + 0.5)
+b.box(stone, -h - 0.45, h + 0.45, -h - 0.45, h + 0.45, zc + 0.5, zc + 0.8)
+for k in range(8):
+    for (a_, b_) in ((-h - 0.35 + k * 0.5, -h - 0.35), (-h - 0.35 + k * 0.5, h + 0.2), (-h - 0.35, -h - 0.35 + k * 0.5), (h + 0.2, -h - 0.35 + k * 0.5)):
+        b.box(cream, a_, a_ + 0.15, b_, b_ + 0.15, zc + 0.8, zc + 1.5)
+b.box(cream, -h - 0.5, h + 0.5, -h - 0.5, -h - 0.35, zc + 1.5, zc + 1.65); b.box(cream, -h - 0.5, h + 0.5, h + 0.35, h + 0.5, zc + 1.5, zc + 1.65)
+b.box(cream, -h - 0.5, -h - 0.35, -h - 0.5, h + 0.5, zc + 1.5, zc + 1.65); b.box(cream, h + 0.35, h + 0.5, -h - 0.5, h + 0.5, zc + 1.5, zc + 1.65)
+# the bell + two small figures on the terrace
+b.cyl(gold, 0, 0, zc + 0.8, zc + 2.0, 0.55, r1=0.3, n=10)
+b.box(gold, -1.2, -0.9, -0.15, 0.15, zc + 0.8, zc + 1.9); b.box(gold, 0.9, 1.2, -0.15, 0.15, zc + 0.8, zc + 1.9)
+# arched belfry stage
+zb = zc + 0.8; hb = 1.35
+b.box(stone, -hb, hb, -hb, hb, zb, zb + 3.4)
+for (cx_, cy_, ux, uy, nx, ny) in FACES:
+    sc = hb / h
+    ox, oy = cx_ * sc, cy_ * sc
+    b.warch(cream, (ox - ux * 0.85, oy - uy * 0.85, zb + 0.5), (ux, uy), (nx, ny), 1.7, 3.0, rise=0.85, off=0.03) if False else None
+    b.warch(cream, (ox - ux * 0.75 , oy - uy * 0.75, zb + 0.5), (ux, uy), (nx, ny), 1.5, 3.0, rise=0.75, off=0.04)
+    b.warch(winw, (ox - ux * 0.6, oy - uy * 0.6, zb + 0.6), (ux, uy), (nx, ny), 1.2, 2.8, rise=0.6, off=0.08)
+for sx in (-1, 1):
+    for sy in (-1, 1):
+        b.box(cream, sx * hb - 0.2, sx * hb + 0.2, sy * hb - 0.2, sy * hb + 0.2, zb, zb + 3.4)
+b.box(cream, -hb - 0.4, hb + 0.4, -hb - 0.4, hb + 0.4, zb + 3.4, zb + 3.9)
+b.box(stone, -hb - 0.25, hb + 0.25, -hb - 0.25, hb + 0.25, zb + 3.9, zb + 4.2)
+for sx in (-1, 1):
+    for sy in (-1, 1):
+        b.pyramid(cream, sx * (hb + 0.1) - 0.2, sx * (hb + 0.1) + 0.2, sy * (hb + 0.1) - 0.2, sy * (hb + 0.1) + 0.2, zb + 4.2, zb + 5.1)
+zd = zb + 4.2
+b.ellipsoid(dome_m, 0, 0, zd, 1.55, 1.55, 1.9, nu=14, nv=7, zmin=0.0)
+b.beam(gold, (0, 0, zd + 1.9), (0, 0, zd + 3.0), w=0.07, n=5)
+b.ellipsoid(gold, 0, 0, zd + 3.0, 0.2, 0.2, 0.28, nu=8, nv=4)
+b.beam(gold, (-0.5, 0, zd + 2.55), (0.5, 0, zd + 2.55), w=0.05, h=0.4)
 objs = b.build('clock')
 text_mesh('JONES & HIGGINS', 0.85, signm, (sx, sy, H0 - 0.95), rot=(math.radians(90), 0, yaw), extrude=0.08, name='clock_sign')
 objs = [o for o in bpy.data.objects if o.type == 'MESH']

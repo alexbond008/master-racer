@@ -107,7 +107,7 @@ export function buildWorld(scene, data, extra = {}) {
   const groundMats = [asphalt, pavement, backMat, grassMat];
 
   const back = new THREE.Mesh(new THREE.PlaneGeometry(WORLD.w + 2400, WORLD.h + 2400), backMat);
-  back.rotation.x = -Math.PI / 2; back.position.set(WORLD.w / 2, -0.02, WORLD.h / 2); group.add(back);
+  back.rotation.x = -Math.PI / 2; back.position.set(WORLD.w / 2, -0.02, WORLD.h / 2); back.receiveShadow = true; group.add(back);
 
   // ---------- tiles
   const tiles = new Map();
@@ -155,7 +155,7 @@ export function buildWorld(scene, data, extra = {}) {
     const uv = g.attributes.uv, pos = g.attributes.position; for (let k = 0; k < uv.count; k++) uv.setXY(k, pos.getX(k) * 0.1, pos.getZ(k) * 0.1);
     parkGeos.push(g);
   }
-  if (parkGeos.length) group.add(new THREE.Mesh(mergeGeometries(parkGeos, false), grassMat));
+  if (parkGeos.length) { const pm = new THREE.Mesh(mergeGeometries(parkGeos, false), grassMat); pm.receiveShadow = true; group.add(pm); }
   const trees = [];
   for (const pk of parks) {
     let area = 0; pk.pts.forEach((p, i) => { const q = pk.pts[(i + 1) % pk.pts.length]; area += p[0] * q[1] - q[0] * p[1]; }); area = Math.abs(area) / 2;
@@ -189,6 +189,7 @@ export function buildWorld(scene, data, extra = {}) {
     const def = lmDefs[key]; landmarks.push({ name: def.name, x: def.c[0], z: def.c[1] });
     const src = lmModels[key]; if (!src) continue;
     const g = src.clone(true); g.position.set(def.c[0], 0, def.c[1]); g.rotation.y = def.theta; group.add(g);
+    g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     g.traverse(o => { if (o.isMesh && o.material && o.material.emissive && o.material.emissiveIntensity > 0 && o.material.emissive.r + o.material.emissive.g + o.material.emissive.b > 0.01 && !o.material.userData.toned) { o.material = o.material.clone(); o.material.userData.toned = true; o.material.emissiveIntensity *= 0.32; } });
     skipPolys.push(def.poly);
     const c = Math.cos(def.theta), s = Math.sin(def.theta); let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
@@ -208,7 +209,7 @@ export function buildWorld(scene, data, extra = {}) {
   // ---------- build tile meshes
   const mk = (list, mat) => { if (!list.length) return; const g = mergeGeometries(list, false); group.add(new THREE.Mesh(g, mat)); list.forEach(x => x.dispose()); };
   for (const t of tiles.values()) {
-    for (const [acc, mat] of [[t.road, asphalt], [t.pave, pavement], [t.mark, markMat], [t.red, redMat]]) { const m = acc.mesh(mat); if (m) group.add(m); }
+    for (const [acc, mat] of [[t.road, asphalt], [t.pave, pavement], [t.mark, markMat], [t.red, redMat]]) { const m = acc.mesh(mat); if (m) { m.receiveShadow = mat !== markMat; group.add(m); } }
   }
 
   // ---------- trees (instanced) + collision
@@ -221,7 +222,7 @@ export function buildWorld(scene, data, extra = {}) {
       tmp.position.set(t.x, t.h * 0.18 + 0.1, t.z); tmp.scale.set(1, t.h * 0.36, 1); tmp.rotation.set(0, 0, 0); tmp.updateMatrix(); trunk.setMatrixAt(i, tmp.matrix);
       cgAdd({ x: t.x, z: t.z, r: t.r * 0.5, tree: true }, 2);
     });
-    group.add(fol, trunk);
+    fol.castShadow = true; trunk.castShadow = true; group.add(fol, trunk);
   }
 
   lap('meshes');

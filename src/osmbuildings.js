@@ -178,7 +178,7 @@ export class OsmBuildings {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(acc.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(acc.n, 3));
       g.setAttribute('uv', new THREE.Float32BufferAttribute(acc.uv, 2)); g.setAttribute('color', new THREE.Float32BufferAttribute(acc.c, 3));
-      g.setIndex(acc.i); g.computeBoundingSphere(); const m = new THREE.Mesh(g, mat); void flatShade; return m;
+      g.setIndex(acc.i); g.computeBoundingSphere(); const m = new THREE.Mesh(g, mat); void flatShade; if (mat === this.bMat) { m.castShadow = true; m.receiveShadow = true; } return m;
     };
     for (const [acc, mat] of [[A, this.bMat], [S, this.signMat]]) { const m = mesh(acc, mat); if (m) { this.group.add(m); tile.meshes.push(m); } }
     this.stats.buildings += tile.count; void bld; void sign;

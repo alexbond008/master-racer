@@ -308,6 +308,11 @@ class Car:
     def cast(self, origin, direction):
         d = Vector(direction).normalized()
         loc, nor, idx, dist = self.surf.ray_cast(Vector(origin), d, 50.0)
+        if loc is None:      # rays exactly on a triangle edge can slip through: retry with tiny jitter
+            for j in ((3e-4, 1.7e-4, 2e-4), (-2.3e-4, 3e-4, -1.1e-4), (1.3e-4, -2.9e-4, 3.1e-4)):
+                loc, nor, idx, dist = self.surf.ray_cast(Vector(origin) + Vector(j), d, 50.0)
+                if loc is not None:
+                    break
         if loc is not None and nor.dot(d) > 0:
             nor = -nor        # normals of sliver triangles can be flipped: always face the ray origin
         return loc, nor
@@ -369,6 +374,7 @@ class Car:
             v.co = loc + nor * offset
         if miss:
             self.warn += 1
+            print('PATCH MISS', gname, mat, len(miss), [(round(v.co.x,3), round(v.co.y,3)) for v in miss[:3]])
             bmesh.ops.delete(b2, geom=miss, context='VERTS')
         b2.faces.ensure_lookup_table()
         b2.normal_update()
@@ -394,7 +400,7 @@ class Car:
                 nf = tgt.faces.new(nv)
                 nf.material_index = mi
             except ValueError:
-                pass
+                self.dropped = getattr(self, 'dropped', 0) + 1
         b2.free()
 
     # side window etc. helpers

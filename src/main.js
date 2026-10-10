@@ -27,11 +27,16 @@ const canvas = $('game');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(62, 1, 0.3, 2400);
 const hemi = new THREE.HemisphereLight(0x8a9bd6, 0x2a1d14, 0.75); scene.add(hemi);
-const moon = new THREE.DirectionalLight(0xa9b9ff, 0.55); moon.position.set(-300, 400, 200); scene.add(moon);
+const moon = new THREE.DirectionalLight(0xffb27a, 0.9); scene.add(moon, moon.target);   // low warm dusk sun: long shadows
+moon.castShadow = true; moon.shadow.mapSize.set(2048, 2048); moon.shadow.bias = -0.0005; moon.shadow.normalBias = 0.35;
+Object.assign(moon.shadow.camera, { left: -120, right: 120, top: 120, bottom: -120, near: 10, far: 700 });
+const SUN_DIR = new THREE.Vector3(-0.62, 0.42, -0.66).normalize();           // from the south-west, ~25 degrees up
+const placeSun = (x, z) => { const q = 0.5; x = Math.round(x / q) * q; z = Math.round(z / q) * q; moon.target.position.set(x, 0, z); moon.position.set(x + SUN_DIR.x * 300, SUN_DIR.y * 300, z + SUN_DIR.z * 300); moon.target.updateMatrixWorld(); };
 
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -431,6 +436,7 @@ function frame(now) {
   } else if (camera.view && camera.view.enabled) { camera.clearViewOffset(); camera.updateProjectionMatrix(); }
 
   world.update(dt, p.x, p.z);
+  { const f = game.devCam ? { x: game.devCam.lx, z: game.devCam.lz } : p; placeSun(f.x, f.z); }
   if (game.devCam) { const c = game.devCam; camera.position.set(c.x, c.y, c.z); camera.lookAt(c.lx, c.ly, c.lz); camera.fov = c.fov || 55; camera.updateProjectionMatrix(); m.visible = !!c.showCar; world.update(0, c.lx, c.lz); }
   weather.update(dt, camera, spd);
   const guide = guidance(p);

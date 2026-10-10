@@ -21,7 +21,7 @@ function extrudeProfile(pts, width) {
 function cached(key, fn) { let g = geoCache.get(key); if (!g) { g = fn(); geoCache.set(key, g); } return g; }
 
 export function buildCar(def, opts = {}) {
-  if (!opts.procedural && getCarModel(def.id)) return buildGlbCar(def, opts);
+  if (!opts.procedural && getCarModel(def.id)) return castAll(buildGlbCar(def, opts));
   const root = new THREE.Group();
   const mods = resolveMods(def, opts.mods);
   const paint = makePaint(opts.color || mods.color, mods.finish);
@@ -218,6 +218,8 @@ function addLivery(root, def, type, color) {
   }
 }
 
+const castAll = r => { r.traverse(o => { if (o.isMesh && !(o.material && o.material.transparent)) { o.castShadow = true; o.receiveShadow = true; } }); return r; };
+
 // call every frame
 export function updateCarModel(model, phys, dt, time = performance.now() * 0.001) {
   for (const wh of model.userData.wheels) {
@@ -246,6 +248,7 @@ function buildGlbCar(def, opts) {
         if (m.name === 'Paint') return paint;
         if (m.name === 'Rim') { const r = inst(m); r.color.set(mods.rim); return r; }
         if (m.name === 'TailLight') { tail = inst(m); return tail; }
+        if (m.name === 'Glass' || m.name === 'GlassClear') { const g = inst(m); if (g.opacity < 0.99) { g.transparent = true; g.depthWrite = false; } return g; }
         return m;
       });
       o.material = Array.isArray(o.material) ? out : out[0];

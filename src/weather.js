@@ -65,7 +65,7 @@ export class Weather {
 
     this.scene.fog.color.copy(c.fogCol); this.scene.fog.density = c.fog;
     this.hemi.intensity = c.hemi + this.flash * 3;
-    this.moon.intensity = 0.55 + this.flash * 4;
+    this.moon.intensity = (0.2 + 0.8 * Math.max(0, 1 - c.rain * 0.75 - c.snow * 0.3)) + this.flash * 4;
     this.skyMat.uniforms.top.value.copy(c.top); this.skyMat.uniforms.horizon.value.copy(c.horizon); this.skyMat.uniforms.flash.value = this.flash;
     this.sky.position.copy(cam.position);
 
