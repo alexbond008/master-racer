@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { CARS, CAR_ORDER, MPH } from './cars.js';
@@ -36,7 +37,20 @@ const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 scene.environmentIntensity = 0.45;
 const netData = await (await fetch('/data/southlondon.json')).json();
-const world = buildWorld(scene, netData);
+// the dev server may already decode .gz (Content-Encoding), so sniff the gzip magic bytes
+const gunzipJson = async url => {
+  const buf = new Uint8Array(await (await fetch(url)).arrayBuffer());
+  if (buf[0] === 0x1f && buf[1] === 0x8b) return new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
+  return JSON.parse(new TextDecoder().decode(buf));
+};
+const bdata = await gunzipJson('/data/buildings.json.gz');
+const lmdefs = await (await fetch('/data/landmarks.json')).json();
+const lmModels = {};
+{ // Blender landmark models (any that exist), loaded before the world is built
+  const gl = new GLTFLoader();
+  await Promise.all(Object.keys(lmdefs).map(async k => { try { lmModels[k] = (await gl.loadAsync(`/models/landmarks/${k}.glb`)).scene; } catch { /* not modelled yet */ } }));
+}
+const world = buildWorld(scene, netData, { bdata, lmdefs, lmModels });
 const weather = new Weather(scene, hemi, moon, world.groundMats, $('flash'));
 weather.onThunder = () => audio.thunder();
 const input = new Input();
@@ -94,6 +108,7 @@ function snapToRoad() {
   const lp = world.net.lanePoint(e, d, d === 1 ? nr.s : e.len - nr.s); placePlayerPose(lp.x, lp.z, Math.atan2(lp.tx, lp.tz));
 }
 spawn();
+world.preload(world.spawn.x, world.spawn.z);
 
 // ---------- traffic + police
 await preloadKenney(KENNEY_FILES);
@@ -414,7 +429,7 @@ function frame(now) {
     m.visible = true;
   } else if (camera.view && camera.view.enabled) { camera.clearViewOffset(); camera.updateProjectionMatrix(); }
 
-  world.update(dt);
+  world.update(dt, p.x, p.z);
   weather.update(dt, camera, spd);
   const guide = guidance(p);
 

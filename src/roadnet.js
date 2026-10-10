@@ -1,6 +1,6 @@
 // Road graph built from OpenStreetMap data (see public/data/southlondon.json; © OpenStreetMap contributors, ODbL).
 // Edge = polyline between two junction nodes. Cars drive on the LEFT.
-export const CLASS_WIDTH = [13, 11, 10, 8.5];     // total carriageway width per class (A, B, C, residential)
+export const CLASS_WIDTH = [12, 10, 8.5, 7];     // total carriageway width per class (A, B, C, residential)
 export const CLASS_SPEED = [1.0, 0.9, 0.78, 0.55]; // routing preference
 const CELL = 64;
 

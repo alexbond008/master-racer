@@ -13,7 +13,7 @@ export class Hud {
     this.mapImg = this.renderMap();
     this.route = null; this.dest = null;
     this.bigOpen = false;
-    this.zoom = 0.9;
+    this.zoom = 0.62;
 
     this.big.addEventListener('click', e => {
       const r = this.big.getBoundingClientRect();
@@ -24,7 +24,7 @@ export class Hud {
   }
 
   renderMap() {
-    const S = 0.4, net = this.world.net, W = WORLD.w, H = WORLD.h;
+    const S = 0.22, net = this.world.net, W = WORLD.w, H = WORLD.h;
     const cv = document.createElement('canvas'); cv.width = Math.round((W + 120) * S); cv.height = Math.round((H + 120) * S);
     const x = cv.getContext('2d');
     x.scale(S, S); x.translate(60, 60);
@@ -33,28 +33,28 @@ export class Hud {
     x.fillStyle = '#1f4a26';
     for (const pk of this.world.parks) { x.beginPath(); pk.pts.forEach(([px, pz], i) => (i ? x.lineTo(px, pz) : x.moveTo(px, pz))); x.closePath(); x.fill(); }
     // roads, big ones on top
-    const width = [11, 9, 7.5, 5.5], color = ['#7a7f8a', '#666b76', '#555a64', '#454953'];
+    const width = [20, 16, 13, 9], color = ['#7a7f8a', '#666b76', '#555a64', '#454953'];
     x.lineCap = 'round'; x.lineJoin = 'round';
     for (const cls of [3, 2, 1, 0]) {
       x.strokeStyle = color[cls]; x.lineWidth = width[cls]; x.beginPath();
       for (const e of net.edges) if (e.cls === cls) e.pts.forEach(([px, pz], i) => (i ? x.lineTo(px, pz) : x.moveTo(px, pz)));
       x.stroke();
     }
-    x.strokeStyle = '#d9a441'; x.lineWidth = 3; x.beginPath(); for (const e of net.edges) if (e.a23) e.pts.forEach(([px, pz], i) => (i ? x.lineTo(px, pz) : x.moveTo(px, pz))); x.stroke();
+    x.strokeStyle = '#d9a441'; x.lineWidth = 6; x.beginPath(); for (const e of net.edges) if (e.a23) e.pts.forEach(([px, pz], i) => (i ? x.lineTo(px, pz) : x.moveTo(px, pz))); x.stroke();
     // district wash + names
     for (const k in DISTRICTS) {
-      const d = DISTRICTS[k], g = x.createRadialGradient(d.c[0], d.c[1], 20, d.c[0], d.c[1], 320);
-      g.addColorStop(0, d.tint + '44'); g.addColorStop(1, d.tint + '00'); x.fillStyle = g; x.fillRect(d.c[0] - 320, d.c[1] - 320, 640, 640);
-      x.fillStyle = '#fff'; x.font = 'bold 56px "Arial Narrow", Arial'; x.textAlign = 'center'; x.fillText(d.name, d.c[0], d.c[1] - 60);
+      const d = DISTRICTS[k], g = x.createRadialGradient(d.c[0], d.c[1], 40, d.c[0], d.c[1], 700);
+      g.addColorStop(0, d.tint + '44'); g.addColorStop(1, d.tint + '00'); x.fillStyle = g; x.fillRect(d.c[0] - 700, d.c[1] - 700, 1400, 1400);
+      x.fillStyle = '#fff'; x.font = 'bold 110px "Arial Narrow", Arial'; x.textAlign = 'center'; x.fillText(d.name, d.c[0], d.c[1] - 120);
     }
-    for (const l of this.world.landmarks) { x.fillStyle = '#ffb400'; x.beginPath(); x.arc(l.x, l.z, 9, 0, 7); x.fill(); }
+    for (const l of this.world.landmarks) { x.fillStyle = '#ffb400'; x.beginPath(); x.arc(l.x, l.z, 16, 0, 7); x.fill(); }
     // road names: longest edge of each distinct main road
     const best = new Map();
     for (const e of net.edges) if (e.cls <= 1 && e.name && e.len > 90 && (!best.has(e.name) || best.get(e.name).len < e.len)) best.set(e.name, e);
-    x.fillStyle = '#ffffffcc'; x.font = 'bold 26px "Arial Narrow", Arial'; x.textAlign = 'center';
+    x.fillStyle = '#ffffffcc'; x.font = 'bold 48px "Arial Narrow", Arial'; x.textAlign = 'center';
     for (const [name, e] of best) {
       const m = net.pointAt(e, 1, e.len / 2); let a = Math.atan2(m.tz, m.tx); if (a > Math.PI / 2) a -= Math.PI; if (a < -Math.PI / 2) a += Math.PI;
-      x.save(); x.translate(m.x, m.z); x.rotate(a); x.fillText(name, 0, -9); x.restore();
+      x.save(); x.translate(m.x, m.z); x.rotate(a); x.fillText(name, 0, -16); x.restore();
     }
     return cv;
   }

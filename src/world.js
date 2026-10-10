@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { rnd, pick, windowTextures, box } from './buildings.js';
-import * as L from './landmarks.js';
+import { rnd, windowTextures } from './buildings.js';
+import { OsmBuildings } from './osmbuildings.js';
 import { buildFurniture } from './furniture.js';
 import { RoadNet } from './roadnet.js';
 
@@ -31,7 +31,7 @@ const PALETTE = {
   streatham: ['#9a4430', '#b5573f', '#d8d0bd', '#cfc5ae', '#8c6a4e', '#9b8f72'],
 };
 const BRIGHT = { brixton: ['#e63946', '#ffb703', '#2a9d8f', '#3a86ff', '#fb5607', '#06d6a0', '#ffd166'], peckham: ['#e63946', '#ffb703', '#2a9d8f', '#3a86ff', '#fb5607', '#8338ec', '#06d6a0', '#ffd166', '#ff4fa3'], streatham: ['#d62828', '#1d4e89', '#f4f4f4', '#2b9348', '#ffb703'] };
-const TILE = 256, SETBACK = 2.6, PAVE = 2.6;
+const TILE = 256, PAVE = 2.0;
 
 // ---- geometry accumulators (one set per map tile so frustum culling works)
 class Acc {
@@ -76,7 +76,7 @@ const noiseTex = (base, spread) => {
   const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
 };
 
-export function buildWorld(scene, data) {
+export function buildWorld(scene, data, extra = {}) {
   const T0 = performance.now(), lap = n => console.log('[world]', n, Math.round(performance.now() - T0), 'ms');
   const net = new RoadNet(data); NET = net; lap('roadnet');
   WORLD.w = data.bounds[0]; WORLD.h = data.bounds[1];
@@ -96,7 +96,14 @@ export function buildWorld(scene, data) {
   const redMat = new THREE.MeshStandardMaterial({ color: 0x9c2326, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -2 });
   const dashTex = (() => { const cv = document.createElement('canvas'); cv.width = 8; cv.height = 64; const x = cv.getContext('2d'); x.fillStyle = '#ece6cc'; x.fillRect(0, 0, 8, 24); const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t; })();
   const markMat = new THREE.MeshBasicMaterial({ map: dashTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, color: new THREE.Color(0.85, 0.85, 0.8) });
-  const signMat = new THREE.MeshBasicMaterial({ vertexColors: true });
+  const paneTex = (() => { // shopfront glazing: bright panes in dark frames with a door, repeats every 2.6 m
+    const cv = document.createElement('canvas'); cv.width = 128; cv.height = 64; const x = cv.getContext('2d');
+    x.fillStyle = '#1a1612'; x.fillRect(0, 0, 128, 64);
+    const g = x.createLinearGradient(0, 0, 0, 64); g.addColorStop(0, '#ffe2a8'); g.addColorStop(1, '#ffb866');
+    x.fillStyle = g; x.fillRect(4, 4, 86, 56); x.fillStyle = '#ffd08a'; x.fillRect(96, 4, 28, 56); x.fillStyle = '#3a2c20'; x.fillRect(104, 40, 12, 3); x.fillRect(46, 4, 3, 56); x.fillStyle = '#ffffff'; x.fillRect(58, 61, 14, 3); // plain white patch the fascia strips sample
+    const t = new THREE.CanvasTexture(cv); t.wrapS = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t;
+  })();
+  const signMat = new THREE.MeshBasicMaterial({ vertexColors: true, map: paneTex });
   const groundMats = [asphalt, pavement, backMat, grassMat];
 
   const back = new THREE.Mesh(new THREE.PlaneGeometry(WORLD.w + 2400, WORLD.h + 2400), backMat);
@@ -161,105 +168,46 @@ export function buildWorld(scene, data) {
   }
 
   // ---------- spatial structures: occupancy (line of sight), collision grid
-  const OCC = new Set();
+  const OCC = new Map();                                       // 3 m cells -> number of footprints covering it
   const KEY = (x, z) => (Math.floor(x / 3) + 2) * 4096 + (Math.floor(z / 3) + 2);
   const occ = (x, z) => OCC.has(KEY(x, z));
-  const markRect = (cx, cz, th, hx, hz) => { const c = Math.cos(th), s = Math.sin(th); for (let a = -hx; a <= hx + 0.01; a += 1.5) for (let b = -hz; b <= hz + 0.01; b += 1.5) OCC.add(KEY(cx + a * c + b * s, cz - a * s + b * c)); };
+  const occAdd = (cx, cz, th, hx, hz) => { const c = Math.cos(th), s = Math.sin(th), keys = []; for (let a = -hx; a <= hx + 0.01; a += 1.5) for (let b = -hz; b <= hz + 0.01; b += 1.5) { const k = KEY(cx + a * c + b * s, cz - a * s + b * c); OCC.set(k, (OCC.get(k) || 0) + 1); keys.push(k); } return keys; };
+  const occRemove = keys => { for (const k of keys) { const n = (OCC.get(k) || 1) - 1; if (n <= 0) OCC.delete(k); else OCC.set(k, n); } };
   const colGrid = new Map(), CG = 32;
   const cgAdd = (o, r) => {
-    const ox = o.cx ?? o.x, oz = o.cz ?? o.z;
-    for (let cz = Math.floor((oz - r) / CG); cz <= Math.floor((oz + r) / CG); cz++) for (let cx = Math.floor((ox - r) / CG); cx <= Math.floor((ox + r) / CG); cx++) { const k = cx + ',' + cz; let l = colGrid.get(k); if (!l) colGrid.set(k, l = []); l.push(o); }
+    const ox = o.cx ?? o.x, oz = o.cz ?? o.z, cells = [];
+    for (let cz = Math.floor((oz - r) / CG); cz <= Math.floor((oz + r) / CG); cz++) for (let cx = Math.floor((ox - r) / CG); cx <= Math.floor((ox + r) / CG); cx++) { const k = cx + ',' + cz; let l = colGrid.get(k); if (!l) colGrid.set(k, l = []); l.push(o); cells.push(k); }
+    return { o, cells };
   };
+  const cgRemove = h => { for (const k of h.cells) { const l = colGrid.get(k); if (!l) continue; const i = l.indexOf(h.o); if (i >= 0) l.splice(i, 1); if (!l.length) colGrid.delete(k); } };
   const addObb = (cx, cz, th, hx, hz) => cgAdd({ cx, cz, c: Math.cos(th), s: Math.sin(th), hx, hz }, Math.hypot(hx, hz) + 1);
-  const rectFree = (cx, cz, th, hx, hz, ignoreId, allowPark = false) => {
-    const c = Math.cos(th), s = Math.sin(th);
-    const as = hx > 9 ? [-hx, -hx / 2, 0, hx / 2, hx] : [-hx, 0, hx], bs = hz > 9 ? [-hz, -hz / 2, 0, hz / 2, hz] : [-hz, 0, hz];
-    for (const a of as) for (const b of bs) {
-      const x = cx + a * c + b * s, z = cz - a * s + b * c;
-      if (x < 4 || z < 4 || x > WORLD.w - 4 || z > WORLD.h - 4) return false;
-      if (occ(x, z)) return false;
-      if (!allowPark && inPark(x, z)) return false;
-      if (net.clearance(x, z, ignoreId, 16) < 1.8) return false;
-    }
-    return true;
-  };
-
-  lap('parks');
-  // ---------- landmarks (sited at real coordinates, front facing the nearest road)
-  const landmarks = [];
-  const placeLandmark = (key, fn, label, half, o = {}) => {
-    for (const k of [0.72, 0.58, 0.46]) if (placeLandmarkK(key, fn, label, half, { ...o, k })) return true;
-    console.warn('landmark not placed:', label); return false;
-  };
-  const placeLandmarkK = (key, fn, label, half, o = {}) => {
-    const tgt = data.landmarks[key]; if (!tgt) return false;
-    const k = o.k ?? 0.72, eh = half * k;   // footprints are squeezed horizontally so they fit between real streets
-    const base = net.nearest(tgt[0], tgt[1], 160, e => e.cls <= 2) || net.nearest(tgt[0], tgt[1], 160); if (!base) return false;
-    let best = null;
-    for (const ds of [0, 20, -20, 45, -45, 80, -80, 120, -120, 170, -170, 230, -230]) for (const side of [1, -1]) {
-      const e = base.e, sIdx = Math.max(1, Math.min(e.len - 1, base.s + ds)), p = net.pointAt(e, 1, sIdx), nx = p.tz * side, nz = -p.tx * side;
-      const dist0 = e.width / 2 + PAVE + 0.6 + eh, cx = p.x + nx * dist0, cz = p.z + nz * dist0;
-      const th = Math.atan2(p.x - cx, p.z - cz);
-      if (!rectFree(cx, cz, th, eh, eh, e.id, !!o.allowPark)) continue;
-      const score = Math.hypot(cx - tgt[0], cz - tgt[1]);
-      if (!best || score < best.score) best = { cx, cz, th, score };
-    }
-    if (!best) return false;
-    const g = new THREE.Group(); g.position.set(best.cx, 0, best.cz); g.rotation.y = best.th; g.scale.set(k, 1, k); group.add(g);
-    const info = fn(g, { x0: -half, x1: half, z0: -half, z1: half }, ctx) || {};
-    markRect(best.cx, best.cz, best.th, eh + 1, eh + 1);
-    const c = Math.cos(best.th), s = Math.sin(best.th), toW = (lx, lz) => [best.cx + (lx * c + lz * s) * k, best.cz + (-lx * s + lz * c) * k];
-    const rects = info.solid === undefined ? [{ x0: -half, x1: half, z0: -half, z1: half }] : (info.solid ? [info.solid] : []);
-    for (const r of [...rects, ...(info.extra || [])]) { const [wx, wz] = toW((r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2); addObb(wx, wz, best.th, (r.x1 - r.x0) / 2 * k, (r.z1 - r.z0) / 2 * k); }
-    for (const t of info.trees || []) { const [wx, wz] = toW(t.x, t.z); cgAdd({ x: wx, z: wz, r: t.r * 0.5 * k, tree: true }, 2); }
-    landmarks.push({ name: label, x: best.cx, z: best.cz });
-    return true;
-  };
-  const LMS = [
-    ['townhall', L.townHall, 'LAMBETH TOWN HALL', 21], ['academy', L.academy, 'BRIXTON ACADEMY', 21], ['windrush', L.plazaChurch, 'WINDRUSH SQUARE', 21],
-    ['estate', L.estate, 'BARRIER BLOCK', 21], ['windmill', L.windmill, 'BRIXTON WINDMILL', 19, { allowPark: true }], ['brixton_rail', L.arches, 'BRIXTON ARCHES', 21],
-    ['library', L.library, 'PECKHAM LIBRARY', 24], ['levels', L.carpark, 'PECKHAM LEVELS', 21], ['bussey', L.bussey, 'BUSSEY BUILDING', 21], ['clock', L.clockCorner, 'CLOCK TOWER', 10],
-    ['churches', L.churches, 'STREATHAM GREEN', 21, { allowPark: true }], ['theatre', L.theatre, 'STREATHAM HILL THEATRE', 21], ['icearena', L.barrelArena, 'STREATHAM ICE ARENA', 21],
-  ];
-  for (const [key, fn, label, half, o] of LMS) placeLandmark(key, fn, label, half, o);
-
-  lap('landmarks');
-  // ---------- terraces along every street (both sides), oriented to the road
-  let plots = 0;
-  for (const e of net.edges) {
-    if (e.bridge || e.len < 14) continue;
-    const mainRd = e.cls <= 2;
-    for (const side of [1, -1]) {
-      let s = 3 + rnd() * 3;
-      while (s < e.len - 5) {
-        const m = net.pointAt(e, 1, s), d0 = districtAt(m.x, m.z);
-        const tower = d0 === 'peckham' && rnd() < 0.03;
-        const fw = tower ? 26 : 6.5 + rnd() * 3.5, fd = tower ? 13 : 9 + rnd() * 2;
-        const p = net.pointAt(e, 1, Math.min(e.len, s + fw / 2)), nx = p.tz * side, nz = -p.tx * side;
-        const off = e.width / 2 + SETBACK + fd / 2, cx = p.x + nx * off, cz = p.z + nz * off, th = Math.atan2(p.tx, p.tz);
-        s += fw + 0.4;
-        if (!rectFree(cx, cz, th, fd / 2, fw / 2, e.id)) { s += 1.5; continue; }
-        markRect(cx, cz, th, fd / 2, fw / 2); addObb(cx, cz, th, fd / 2, fw / 2); plots++;
-        const d = districtAt(cx, cz), t = tile(cx, cz);
-        const fl = tower ? 8 + Math.floor(rnd() * 4) : (mainRd ? 3 + Math.floor(rnd() * 3) : 2 + Math.floor(rnd() * 2));
-        const col = tower ? pick(['#8f8f8c', '#7e8082', '#9b9a94']) : pick(PALETTE[d]);
-        box(tower ? t.con : t.bld, cx, cz, fd, fw, fl * 3.2, col, 0, true, th);
-        if (mainRd && !tower && rnd() < 0.85) { // shopfront: glowing windows + bright fascia on the road face
-          const fc = new THREE.Color(pick(BRIGHT[d])).multiplyScalar(1.7), warm = new THREE.Color(1.5, 1.05, 0.55);
-          const fx = cx - nx * (fd / 2 + 0.2), fz = cz - nz * (fd / 2 + 0.2), wx = cx - nx * (fd / 2 + 0.06), wz = cz - nz * (fd / 2 + 0.06);
-          box(t.sign, fx, fz, 0.4, fw - 0.6, 0.9, fc, 3.1, false, th); box(t.sign, wx, wz, 0.12, fw - 1.2, 2.0, warm, 0.8, false, th);
-        }
-      }
-    }
+  // ---------- Blender landmark models, placed on their real OSM footprints
+  const landmarks = [], skipPolys = [];
+  const inPolyW = (pts, x, z) => { let c = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const [xi, zi] = pts[i], [xj, zj] = pts[j]; if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) c = !c; } return c; };
+  const lmDefs = extra.lmdefs || {}, lmModels = extra.lmModels || {};
+  for (const key in lmDefs) {
+    const def = lmDefs[key]; landmarks.push({ name: def.name, x: def.c[0], z: def.c[1] });
+    const src = lmModels[key]; if (!src) continue;
+    const g = src.clone(true); g.position.set(def.c[0], 0, def.c[1]); g.rotation.y = def.theta; group.add(g);
+    skipPolys.push(def.poly);
+    const c = Math.cos(def.theta), s = Math.sin(def.theta); let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+    for (const [x, z] of def.poly) { const vx = x - def.c[0], vz = z - def.c[1], lx = vx * c - vz * s, lz = vx * s + vz * c; x0 = Math.min(x0, lx); x1 = Math.max(x1, lx); z0 = Math.min(z0, lz); z1 = Math.max(z1, lz); }
+    const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2, wx = def.c[0] + mx * c + mz * s, wz = def.c[1] - mx * s + mz * c;
+    addObb(wx, wz, def.theta, (x1 - x0) / 2, (z1 - z0) / 2); occAdd(wx, wz, def.theta, (x1 - x0) / 2, (z1 - z0) / 2);
+    if (src.userData.update) ctx.update.push(src.userData.update);
   }
-  console.log('[world] plots', plots, 'edges', net.edges.length, 'tiles', tiles.size, 'trees', trees.length, 'landmarks', landmarks.length);
+  lap('landmarks');
 
-  lap('terraces');
+  // ---------- real building footprints, streamed in by distance
+  const osm = extra.bdata ? new OsmBuildings(group, extra.bdata, {
+    net, districtAt, addObb, removeObb: cgRemove, occAdd, occRemove,
+    skip: (x, z) => skipPolys.some(p => inPolyW(p, x, z)),
+  }, bMat, signMat) : null;
+
   // ---------- build tile meshes
   const mk = (list, mat) => { if (!list.length) return; const g = mergeGeometries(list, false); group.add(new THREE.Mesh(g, mat)); list.forEach(x => x.dispose()); };
   for (const t of tiles.values()) {
     for (const [acc, mat] of [[t.road, asphalt], [t.pave, pavement], [t.mark, markMat], [t.red, redMat]]) { const m = acc.mesh(mat); if (m) group.add(m); }
-    mk(t.bld, bMat); mk(t.con, concreteMat); mk(t.sign, signMat);
   }
 
   // ---------- trees (instanced) + collision
@@ -341,6 +289,7 @@ export function buildWorld(scene, data) {
 
   return {
     net, data, places: data.places, spawn, parks, trees, landmarks, groundMats, group, collide, lineClear, surfaceGrip, dynamicRects, dynamicObbs, routeToPoint,
-    update: dt => ctx.update.forEach(f => f(dt)), roadNameAt, districtAt, occ,
+    update: (dt, px, pz) => { ctx.update.forEach(f => f(dt)); if (osm && px !== undefined) osm.update(px, pz); }, preload: (px, pz) => osm && osm.preload(px, pz), osm,
+    roadNameAt, districtAt, occ,
   };
 }
