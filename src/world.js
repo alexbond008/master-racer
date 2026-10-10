@@ -189,6 +189,7 @@ export function buildWorld(scene, data, extra = {}) {
     const def = lmDefs[key]; landmarks.push({ name: def.name, x: def.c[0], z: def.c[1] });
     const src = lmModels[key]; if (!src) continue;
     const g = src.clone(true); g.position.set(def.c[0], 0, def.c[1]); g.rotation.y = def.theta; group.add(g);
+    g.traverse(o => { if (o.isMesh && o.material && o.material.emissive && o.material.emissiveIntensity > 0 && o.material.emissive.r + o.material.emissive.g + o.material.emissive.b > 0.01 && !o.material.userData.toned) { o.material = o.material.clone(); o.material.userData.toned = true; o.material.emissiveIntensity *= 0.32; } });
     skipPolys.push(def.poly);
     const c = Math.cos(def.theta), s = Math.sin(def.theta); let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
     for (const [x, z] of def.poly) { const vx = x - def.c[0], vz = z - def.c[1], lx = vx * c - vz * s, lz = vx * s + vz * c; x0 = Math.min(x0, lx); x1 = Math.max(x1, lx); z0 = Math.min(z0, lz); z1 = Math.max(z1, lz); }

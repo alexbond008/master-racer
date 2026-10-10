@@ -1,0 +1,19 @@
+{
+ "footprint": [
+  33.3,
+  61.2
+ ],
+ "height": 32.2,
+ "notes": "Streatham Hill Theatre (Sprague 1929, Grade II). Cream faience front in 3 sections (two pedimented pavilions + central colonnaded promenade loggia of four Tuscan columns), blue canopy with lit sign, vertical lit THEATRE blade signs, red pantile roofs, buff brick auditorium (~21 m) and ~30 m fly tower behind.",
+ "triangles": 5432,
+ "bbox_min": [
+  -20.05,
+  -26.16,
+  0.0
+ ],
+ "bbox_max": [
+  14.04,
+  36.06,
+  32.2
+ ]
+}
