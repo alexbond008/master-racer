@@ -19,7 +19,7 @@ THETA = 3.2
 rng = random.Random(3)
 b = Builder(THETA)
 
-define('Faience', '#e7e3d4', rough=0.45)
+define('Faience', '#f1eee1', rough=0.45)
 define('Faience_Shade', '#cfc9b6', rough=0.5)
 define('Brick_Buff', '#9c8363', rough=0.95)
 define('Brick_Dark', '#7d6248', rough=0.95)
@@ -67,7 +67,8 @@ b.bbox('Faience', xL, xR, yF, -8.0, 0, 5.5)
 b.bbox('Brick_Buff', xL + 0.2, xR - 0.2, -12.0, -8.0, 5.5, H_FRONT)
 # pavilions (3 storeys with windows)
 for (x0, x1) in ((xL, XP1), (XP2, xR)):
-    b.bbox('Faience', x0, x1, yF, -9.0, 5.5, H_FRONT)
+    b.bbox('Faience', x0, x1, yF, -20.5, 5.5, H_FRONT)
+    b.bbox('Brick_Buff', x0 if x0 == xL else x0 + 0.0, x1, -20.5, -9.0, 5.5, H_FRONT)
     # cornice, band courses
     b.bbox('Faience_Shade', x0 - 0.1, x1 + 0.1, yF - 0.35, yF + 0.1, H_FRONT - 0.7, H_FRONT + 0.15)
     b.bbox('Faience_Shade', x0 - 0.05, x1 + 0.05, yF - 0.2, yF + 0.05, 5.5, 5.9)
@@ -85,10 +86,10 @@ for (x0, x1) in ((xL, XP1), (XP2, xR)):
     # windows: two rows of four
     def pw(i, j):
         return 'Emit_Window' if rng.random() < 0.55 else 'Glass_Dark'
-    b.windows('x', yF, x0 + 0.9, x1 - 0.9, 5.9, 15.2, 1.15, 2.3, 2.2, 4.3, pw, out=-1, depth=0.16, sill=0.8)
+    b.windows('x', yF, x0 + 0.9, x1 - 0.9, 5.9, 15.2, 1.0, 2.3, 1.8, 4.3, pw, out=-1, depth=0.16, sill=0.8)
     # surrounds above windows (tiny pediments/cornices)
     for k in range(4):
-        wx = x0 + 0.9 + 0.5 * 0 + k * ((x1 - x0 - 1.8) / 3)
+        wx = x0 + 0.9 + 1.05 + k * 1.8
         for z in (6.7, 11.0):
             b.bbox('Faience_Shade', wx - 0.75, wx + 0.75, yF - 0.22, yF, z + 2.3, z + 2.55)
 # vertical corner quoins

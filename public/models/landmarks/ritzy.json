@@ -1,0 +1,19 @@
+{
+ "footprint": [
+  41.5,
+  16.7
+ ],
+ "height": 16.5,
+ "notes": "Ritzy Cinema, Brixton Oval (1911, Grade II). White stucco front with red brick panels, two shaped-gable pavilions with roundels + big segmental pediment over a black billboard, dark canopy with red neon RITZY, red doors, stucco annex with CINEMA blade sign, modern glazed foyer extension at the east end.",
+ "triangles": 7702,
+ "bbox_min": [
+  -26.04,
+  -6.19,
+  0.0
+ ],
+ "bbox_max": [
+  15.83,
+  11.35,
+  16.52
+ ]
+}
