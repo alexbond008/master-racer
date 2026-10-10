@@ -55,7 +55,7 @@ export class Traffic {
     this.scene = scene; this.world = world; this.net = world.net; this.cars = [];
     for (let k = 0; k < count; k++) {
       const kind = pickKind();
-      const a = new Agent(scene, this.net, kind, { color: kind === 'bus' ? undefined : COLORS[(Math.random() * COLORS.length) | 0], cruise: kind === 'bus' ? 9 : 9 + Math.random() * 6, kind: 'civ' });
+      const a = new Agent(scene, this.net, kind, { color: (kind === 'bus' || kind === 'blackcab') ? undefined : COLORS[(Math.random() * COLORS.length) | 0], cruise: kind === 'bus' ? 9 : 9 + Math.random() * 6, kind: 'civ' });
       this.cars.push(a); this.respawn(a, world.spawn, 40, 420);
     }
   }

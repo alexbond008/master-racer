@@ -19,15 +19,16 @@ ST = [
     (-2.225, 0.84, 0.095, 0.31, 0.43, 4.5, 5.0, 0.95, 0.95),
     (-2.120, 0.925, 0.09, 0.37, 0.465, 5.0, 6.0, 0.95, 0.95),
     (-1.900, 0.965, 0.10, 0.46, 0.56, 5.0, 6.0, 0.95, 0.94),
-    (-1.350, 0.980, 0.12, 0.66, 0.805, 5.0, 6.0, 0.94, 0.94),
+    (-1.350, 1.005, 0.12, 0.66, 0.815, 5.0, 6.0, 0.94, 0.94),
     (-0.950, 0.975, 0.13, 0.72, 0.845, 5.0, 6.0, 0.93, 0.94),
     (-0.450, 0.968, 0.13, 0.76, 0.900, 5.0, 6.0, 0.90, 0.94),
     (-0.100, 0.962, 0.13, 0.78, 1.035, 5.5, 6.0, 0.72, 0.94),
     (0.300, 0.960, 0.13, 0.80, 1.125, 6.0, 6.0, 0.62, 0.94),
     (0.650, 0.970, 0.13, 0.80, 1.130, 6.0, 6.0, 0.64, 0.94),
     (1.000, 0.985, 0.14, 0.81, 1.095, 5.5, 6.0, 0.80, 0.94),
-    (1.500, 0.995, 0.16, 0.82, 1.025, 6.0, 6.0, 0.92, 0.94),
-    (2.000, 0.995, 0.18, 0.84, 0.985, 6.0, 6.0, 0.94, 0.94),
+    (1.350, 1.012, 0.15, 0.82, 1.040, 6.0, 6.0, 0.90, 0.94),
+    (1.700, 1.012, 0.17, 0.83, 1.010, 6.0, 6.0, 0.92, 0.94),
+    (2.000, 1.000, 0.18, 0.84, 0.985, 6.0, 6.0, 0.94, 0.94),
     (2.330, 0.975, 0.20, 0.83, 0.950, 6.0, 5.0, 0.94, 0.93),
     (2.400, 0.930, 0.24, 0.81, 0.925, 5.0, 4.5, 0.94, 0.92),
     (2.420, 0.82, 0.30, 0.77, 0.895, 4.0, 3.5, 0.94, 0.92),
@@ -70,8 +71,8 @@ spoiler = part('spoiler')
 mirrors = part('mirrors')
 
 # --------------------------------------------------------------- glass
-sym(glass, surf, 'S', quad_grid([(-0.36, 0.90), (0.62, 0.985), (0.46, 1.085), (0.10, 1.085)], 16, 4), 'Glass', lift=0.005, sdepth=0.02)
-patch(glass, surf, 'F', quad_grid([(-0.64, 0.915), (0.64, 0.915), (0.52, 1.115), (-0.52, 1.115)], 20, 9), 'Glass', lift=0.005, sdepth=0.02)
+sym(glass, surf, 'S', quad_grid([(-0.36, 0.90), (0.62, 0.985), (0.44, 1.06), (0.10, 1.06)], 16, 4), 'Glass', lift=0.005, sdepth=0.02)
+patch(glass, surf, 'F', quad_grid([(-0.64, 0.915), (0.64, 0.915), (0.50, 1.085), (-0.50, 1.085)], 20, 9), 'Glass', lift=0.005, sdepth=0.02)
 patch(glass, surf, 'R', quad_grid([(-0.40, 1.025), (0.40, 1.025), (0.34, 1.10), (-0.34, 1.10)], 10, 3), 'Glass', lift=0.005, sdepth=0.02) if False else None
 
 # --------------------------------------------------------------- panel lines
@@ -118,21 +119,16 @@ for k in range(4):
 
 # --------------------------------------------------------------- front fascia
 for sx in (1, -1):
-    # angular headlight cluster with Y-shaped DRL
-    c = [(sx * 0.30, 0.425), (sx * 0.88, 0.455), (sx * 0.88, 0.545), (sx * 0.30, 0.50)]
-    if sx < 0:
-        c = [c[1], c[0], c[3], c[2]]
-    patch(trim, surf, 'F', quad_grid(c, 12, 3), 'Trim', lift=0.004)
-    def Y(pts, w):
-        return ribbon_grid(pts, w, 0.03)
-    stem = [(sx * 0.34, 0.462), (sx * 0.56, 0.490)]
-    armA = [(sx * 0.56, 0.490), (sx * 0.84, 0.520)]
-    armB = [(sx * 0.56, 0.490), (sx * 0.80, 0.462)]
+    # angular headlight cluster: dark bezel, slim lens, Y-shaped DRL (placed from above on the nose)
+    patch(trim, surf, 'T', quad_grid([(sx * 0.30, -2.19), (sx * 0.90, -2.10), (sx * 0.90, -1.90), (sx * 0.30, -2.00)], 12, 4), 'Trim', lift=0.004)
+    patch(lights, surf, 'T', quad_grid([(sx * 0.52, -2.14), (sx * 0.86, -2.085), (sx * 0.86, -2.03), (sx * 0.52, -2.075)], 10, 2), 'HeadLight', lift=0.008)
+    stem = [(sx * 0.33, -2.15), (sx * 0.50, -2.115)]
+    armA = [(sx * 0.50, -2.115), (sx * 0.85, -2.02)]
+    armB = [(sx * 0.50, -2.115), (sx * 0.84, -1.95)] if False else [(sx * 0.50, -2.115), (sx * 0.80, -1.96)]
     for pts in (stem, armA, armB):
-        patch(lights, surf, 'F', Y(pts, 0.016), 'HeadLight', lift=0.009, skirt=False)
-    patch(lights, surf, 'F', ellipse_grid(sx * 0.62, 0.495, 0.045, 0.022, 2, 12), 'HeadLight', lift=0.009)
+        patch(lights, surf, 'T', ribbon_grid(pts, 0.017, 0.03), 'HeadLight', lift=0.008, skirt=False)
     # lower side intakes (angular)
-    c = [(sx * 0.58, 0.14), (sx * 0.92, 0.17), (sx * 0.92, 0.33), (sx * 0.62, 0.30)]
+    c = [(sx * 0.58, 0.15), (sx * 0.82, 0.165), (sx * 0.82, 0.31), (sx * 0.62, 0.29)]
     if sx < 0:
         c = [c[1], c[0], c[3], c[2]]
     patch(trim, surf, 'F', quad_grid(c, 8, 4), 'Trim', lift=0.005)
@@ -141,11 +137,9 @@ for k in range(3):
     zz = 0.175 + k * 0.045
     patch(trim, surf, 'F', quad_grid([(-0.50, zz), (0.50, zz), (0.50, zz + 0.01), (-0.50, zz + 0.01)], 14, 1), 'Chrome', lift=0.008, skirt=False)
 # front splitter with canards
-add_box(trim, (0, -2.26, 0.105), (1.80, 0.12, 0.02), 'Trim')
+add_box(trim, (0, -2.245, 0.105), (1.80, 0.12, 0.02), 'Trim')
 for sx in (1, -1):
-    add_hex(trim, [(sx * 0.80, -2.15, 0.12), (sx * 0.82, -2.15, 0.12), (sx * 0.84, -2.28, 0.12), (sx * 0.80, -2.28, 0.12),
-                   (sx * 0.80, -2.15, 0.30), (sx * 0.82, -2.15, 0.30), (sx * 0.84, -2.24, 0.22), (sx * 0.80, -2.24, 0.22)], 'Trim')
-    add_box(trim, (sx * 0.92, -2.20, 0.115), (0.12, 0.20, 0.015), 'Trim')
+    add_box(trim, (sx * 0.84, -2.17, 0.20), (0.02, 0.12, 0.15), 'Trim')
 
 # --------------------------------------------------------------- rear
 for sx in (1, -1):
@@ -154,7 +148,7 @@ for sx in (1, -1):
     armA = [(sx * 0.52, 0.790), (sx * 0.84, 0.860)]
     armB = [(sx * 0.52, 0.790), (sx * 0.82, 0.715)]
     for pts in (stem, armA, armB):
-        patch(lights, surf, 'R', ribbon_grid(pts, 0.026, 0.03), 'TailLight', lift=0.010, skirt=True)
+        patch(lights, surf, 'R', ribbon_grid(pts, 0.036, 0.03), 'TailLight', lift=0.010, skirt=True)
 patch(trim, surf, 'R', quad_grid([(-0.90, 0.66), (0.90, 0.66), (0.92, 0.90), (-0.92, 0.90)], 24, 5), 'Trim', lift=0.003) if False else None
 # hexagonal exhaust housing with quad tips
 patch(trim, surf, 'R', ellipse_grid(0, 0.55, 0.25, 0.20, 2, 6, 0.0, 0.0), 'Trim', lift=0.008)
@@ -171,10 +165,14 @@ for k in range(-5, 6):
                    (k * 0.15 - 0.008, 2.20, 0.30), (k * 0.15 + 0.008, 2.20, 0.30), (k * 0.15 + 0.008, 2.44, 0.12), (k * 0.15 - 0.008, 2.44, 0.12)], 'Trim') if False else None
     add_box(trim, (k * 0.15, 2.36, 0.30), (0.016, 0.16, 0.20), 'Trim')
 
-# --------------------------------------------------------------- wide fender flares
+# --------------------------------------------------------------- wide fender flares (body is widened at the axles; lips + flare lines here)
 for y in (YF, YR):
-    a0, a1 = (-62, 70) if y < 0 else (-92, 92)
-    sym(body_extra, surf, 'S', arc_band(y, WR, ARCH_R + 0.002, ARCH_R + (0.06 if y < 0 else 0.085), a0, a1, 28), 'Paint', lift=(0.022 if y < 0 else 0.028))
+    sidelip = (50, 102)
+    for off in ((0.05, 0.085) if y > 0 else (0.05,)):
+        for a0, a1 in ((-sidelip[1], -sidelip[0]), (sidelip[0], sidelip[1])):
+            sym(trim, surf, 'S', ribbon_grid(arc_pts(y, WR, ARCH_R + off, a0, a1, 12), 0.008, 0.02), 'Trim', lift=0.002, skirt=False)
+    for a0, a1 in ((-sidelip[1], -sidelip[0]), (sidelip[0], sidelip[1])):
+        sym(body_extra, surf, 'S', arc_band(y, WR, ARCH_R + 0.002, ARCH_R + (0.04 if y < 0 else 0.06), a0, a1, 12), 'Paint', lift=0.014)
 
 # mirrors
 for sx in (1, -1):
@@ -185,13 +183,13 @@ for sx in (1, -1):
     add_box(mirrors, (sx * 0.935, -0.298, 0.90), (0.10, 0.012, 0.05), 'Chrome')
 
 # --------------------------------------------------------------- big GT wing on swan-neck stays
-WY, WZ = 2.28, 1.185
+WY, WZ = 2.20, 1.14
 prof = [(-0.20, -0.02), (-0.12, 0.03), (0.0, 0.055), (0.14, 0.035), (0.22, 0.012), (0.21, -0.006), (0.0, -0.014), (-0.16, -0.03)]
 add_prism(spoiler, [(WY + a, WZ + b) for a, b in prof], 'YZ', -0.92, 0.92, 'Paint')
 for sx in (1, -1):
-    add_prism(spoiler, [(WY - 0.24, WZ - 0.12), (WY + 0.26, WZ - 0.12), (WY + 0.27, WZ + 0.09), (WY + 0.10, WZ + 0.10), (WY - 0.22, WZ + 0.075)],
+    add_prism(spoiler, [(WY - 0.24, WZ - 0.12), (WY + 0.26, WZ - 0.12), (WY + 0.27, WZ + 0.09), (WY + 0.10, WZ + 0.075), (WY - 0.22, WZ + 0.07)],
               'YZ', sx * 0.92, sx * 0.935, 'Paint')
-    path = [(2.05, 0.945), (2.10, 1.03), (2.19, 1.10), (2.30, 1.14), (2.38, 1.155)]
+    path = [(1.97, 0.96), (2.02, 1.02), (2.10, 1.07), (2.21, 1.095), (2.30, 1.105)]
     secs = []
     for (py, pz) in path:
         secs.append([(sx * 0.46 - 0.018, py, pz - 0.012), (sx * 0.46 + 0.018, py, pz - 0.012),

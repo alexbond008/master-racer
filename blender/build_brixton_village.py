@@ -154,7 +154,7 @@ for idx, (ex, ey, nrm, tan, ang) in enumerate(entrance_edges):
     for gz in (2.2, 4.4):
         B.box(0, -0.5, gz, 4.6, 0.05, 0.06, DARK)
     # coloured sign board above the arch (two colours) + white letters
-    B.box(0, -0.4, 7.65, 6.4, 0.3, 1.5, SIGNS[idx % len(SIGNS)])
+    B.box(0, -0.4, 7.65, 6.4, 0.3, 1.5, SIGNS[(idx * 2) % len(SIGNS)])
     B.text(LET[idx % 3], 0, -0.62, 8.4, 0.62, SIGNW, extrude=0.08)
     # side shop signs
     for sx in (-1, 1):

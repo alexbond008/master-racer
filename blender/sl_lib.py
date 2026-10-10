@@ -246,6 +246,21 @@ class Builder:
         else:
             self.profile_x(mat, pts, y, y + depth)
 
+    def arch_y(self, mat, x, cy, z0, w, h, out=1, depth=0.1, pointed=True, steps=6):
+        """Arched slab on a wall that runs along Y at plane x (outward normal sign `out`)."""
+        pts = self.arch_pts(cy, z0, w, h, pointed, steps)
+        if out > 0:
+            self.profile_y(mat, pts, x, x + depth)
+        else:
+            self.profile_y(mat, pts, x - depth, x)
+
+    def mesh(self, mat, verts, faces):
+        """Arbitrary closed solid from verts [(x,y,z)] and faces [[i..]] (normals auto-fixed)."""
+        bm = self._bm(mat)
+        vs = [bm.verts.new(v) for v in verts]
+        fs = [bm.faces.new([vs[i] for i in f]) for f in faces]
+        self._solid(bm, fs)
+
     def text(self, mat, body, x, y, z, size, rot_z=0.0, align='CENTER', extrude=0.06, face='-Y', spacing=1.0, roll=0.0):
         """Real text as geometry. Plane faces -Y (street) by default. (x,y,z)=baseline centre. rot_z yaws about Z."""
         curve = bpy.data.curves.new('t', 'FONT')

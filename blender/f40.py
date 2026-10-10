@@ -170,7 +170,7 @@ for k in range(-4, 5):
 
 # --------------------------------------------------------------- fender flares
 for y in (YF, YR):
-    a0, a1 = (-58, 62) if y < 0 else (-88, 88)
+    a0, a1 = (-50, 40) if y < 0 else (-88, 88)
     sym(body_extra, surf, 'S', arc_band(y, WR, ARCH_R + 0.002, ARCH_R + (0.04 if y < 0 else 0.06), a0, a1, 30), 'Paint', lift=0.011)
 
 # mirrors

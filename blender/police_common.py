@@ -102,7 +102,7 @@ def make_materials(paint=(0.92, 0.93, 0.95), paint_rough=0.25, paint_metal=0.5):
         mats[name] = m
         return m
     mk('Paint', paint, paint_rough, paint_metal)
-    mk('Glass', (0.012, 0.016, 0.022), 0.05, 0.3)
+    mk('Glass', (0.035, 0.05, 0.07), 0.04, 0.6)
     mk('Tyre', (0.025, 0.025, 0.027), 0.85, 0.0)
     mk('Rim', (0.72, 0.73, 0.76), 0.3, 0.9)
     mk('Chrome', (0.9, 0.9, 0.92), 0.12, 1.0)
@@ -577,7 +577,8 @@ class Car:
             for poly in side_windows:
                 self.patch('glass', 'Glass', chaikin(poly, 2), self.side_mapper(sx), (-sx, 0, 0), offset=off, maxlen=0.07)
         self.patch('glass', 'Glass', chaikin(windscreen, 2), self.top_mapper(), (0, 0, -1), offset=off, maxlen=0.08)
-        self.patch('glass', 'Glass', chaikin(rear_window, 2), self.top_mapper(), (0, 0, -1), offset=off, maxlen=0.08)
+        if rear_window is not None:
+            self.patch('glass', 'Glass', chaikin(rear_window, 2), self.top_mapper(), (0, 0, -1), offset=off, maxlen=0.08)
 
     def surround(self, outline, mapper, direction, grow=1.15, offset=0.002):
         cx = sum(p[0] for p in outline) / len(outline)

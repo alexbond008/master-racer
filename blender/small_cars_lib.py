@@ -602,8 +602,8 @@ def build_wheel(car, name, side_sign, R, W, Rr, style, seg=32, spokes=5):
         put('Chrome', revolve_x(cap, 20, mul))
         back = [(xs0 - 0.04, 0.0), (xs0 - 0.04, Rr - 0.025), (xs0 - 0.022, Rr - 0.025), (xs0 - 0.022, 0.0)]
         put('Trim', revolve_x(back, seg, mul))
-        disc = [(xs0 - 0.01, 0.075), (xs0 - 0.01, R * 0.52), (xs0 + 0.004, R * 0.52), (xs0 + 0.004, 0.075)]
-        put('Chrome', revolve_x(disc, seg, mul))
+        disc = [(xs0 - 0.01, 0.075), (xs0 - 0.01, R * 0.50), (xs0 + 0.004, R * 0.50), (xs0 + 0.004, 0.075)]
+        put('Trim', revolve_x(disc, seg, mul))
 
 
 # ----------------------------------------------------------------- export + verify
@@ -661,3 +661,48 @@ def wheel_objects(car, objs, track_f, track_r, wb, R, W, Rr, style, hub_front_ba
         build_wheel(car, nm, sx, R, W, Rr, style, seg=seg, spokes=spokes)
         hubs[nm] = (sx * tr / 2, sy * wb / 2, R)
     return hubs
+
+
+# ----------------------------------------------------------------- BVH helper + generic ring loft
+class Surf:
+    """Ray-casting helper on a bmesh (world space)."""
+    def __init__(self, bm):
+        bm2 = bm.copy()
+        bmesh.ops.triangulate(bm2, faces=bm2.faces[:])
+        self.bvh = BVHTree.FromBMesh(bm2)
+        bm2.free()
+
+    def surf_x(self, sx, y, z):
+        loc, nor, idx, dist = self.bvh.ray_cast(Vector((sx * 3.0, y, z)), Vector((-sx, 0, 0)))
+        return None if loc is None else abs(loc.x)
+
+    def top_z(self, x, y, z0=3.0):
+        loc, nor, idx, dist = self.bvh.ray_cast(Vector((x, y, z0)), Vector((0, 0, -1)))
+        return None if loc is None else loc.z
+
+
+def loft_rings(car, obj, matname, rings, caps=(True, True)):
+    """rings: list of closed lists of 3D points (same count). Adds a closed solid to car[obj]."""
+    bm = bmesh.new()
+    R = [[bm.verts.new(p) for p in ring] for ring in rings]
+    n = len(R[0])
+    for a, b in zip(R[:-1], R[1:]):
+        for j in range(n):
+            try:
+                bm.faces.new((a[j], a[(j + 1) % n], b[(j + 1) % n], b[j]))
+            except ValueError:
+                pass
+    if caps[0]:
+        try:
+            bm.faces.new(R[0])
+        except ValueError:
+            pass
+    if caps[1]:
+        try:
+            bm.faces.new(R[-1])
+        except ValueError:
+            pass
+    bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=1e-6)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    car.add_bm(obj, matname, bm)
+    bm.free()

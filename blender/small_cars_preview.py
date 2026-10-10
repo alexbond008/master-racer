@@ -98,7 +98,7 @@ poses = {
     'side': (Vector((1.0, 0.0, 0.08)), ctr),
     'front': (Vector((0.0, -1.0, 0.12)), ctr),
     'rear': (Vector((0.0, 1.0, 0.12)), ctr),
-    'top': (Vector((0.05, -0.12, 1.0)), ctr),
+    'top': (Vector((0.0, -0.08, 1.0)), ctr),
 }
 for v in views:
     d, tgt = poses[v]
