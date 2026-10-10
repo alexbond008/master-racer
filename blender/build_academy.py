@@ -10,8 +10,8 @@ Footprint: OSM polygon (Blender frame, front toward -Y).
 """
 import sys, os, math
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from lm_common import *
-from lm_common import _area
+from lbx_common import *
+from lbx_common import _area
 
 reset_scene()
 B = Builder()

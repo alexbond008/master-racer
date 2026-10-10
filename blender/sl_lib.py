@@ -246,7 +246,7 @@ class Builder:
         else:
             self.profile_x(mat, pts, y, y + depth)
 
-    def text(self, mat, body, x, y, z, size, rot_z=0.0, align='CENTER', extrude=0.06, face='-Y', spacing=1.0, font=None):
+    def text(self, mat, body, x, y, z, size, rot_z=0.0, align='CENTER', extrude=0.06, face='-Y', spacing=1.0, roll=0.0):
         """Real text as geometry. Plane faces -Y (street) by default. (x,y,z)=baseline centre. rot_z yaws about Z."""
         curve = bpy.data.curves.new('t', 'FONT')
         curve.body = body
@@ -261,6 +261,7 @@ class Builder:
         me = bpy.data.meshes.new_from_object(o.evaluated_get(dg))
         bpy.data.objects.remove(o)
         bpy.data.curves.remove(curve)
+        me.transform(Matrix.Rotation(math.radians(roll), 4, 'Z'))
         M = Matrix.Rotation(math.radians(90), 4, 'X')
         if face == '+Y':
             M = Matrix.Rotation(math.radians(180), 4, 'Z') @ M
@@ -269,6 +270,26 @@ class Builder:
         bm = self._bm(mat)
         bm.from_mesh(me)
         bpy.data.meshes.remove(me)
+
+    def windows(self, axis, fixed, a0, a1, z0, z1, w, h, pitch_a, pitch_z, mat_fn, out=1, depth=0.12, sill=0.9):
+        """Grid of window boxes on an axis-aligned wall.
+        axis 'x': wall runs along x at y=fixed;  axis 'y': wall runs along y at x=fixed.  out=+1/-1 outward normal sign.
+        Floors start at z0+sill every pitch_z while top <= z1.  mat_fn(i, j) -> material name or None (skip)."""
+        n_a = max(1, int((a1 - a0) // pitch_a))
+        margin = ((a1 - a0) - (n_a - 1) * pitch_a) / 2
+        j = 0
+        z = z0 + sill
+        while z + h <= z1 + 1e-6:
+            for i in range(n_a):
+                m = mat_fn(i, j)
+                if m:
+                    a = a0 + margin + i * pitch_a
+                    if axis == 'x':
+                        self.box(m, a, fixed + out * depth / 2, z, w, depth, h)
+                    else:
+                        self.box(m, fixed + out * depth / 2, a, z, depth, w, h)
+            j += 1
+            z += pitch_z
 
     # ---- output -----------------------------------------------------
     def finish(self, key, footprint=None, notes='', preview=True, cams=None, extra=None):

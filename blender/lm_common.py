@@ -257,3 +257,30 @@ def setup_preview(key, centre, radius, height, ground=True, ground_size=300):
         sc.render.filepath = ROOT + '/blender/previews/%s_%s.png' % (key, name)
         bpy.ops.render.render(write_still=True)
     return shoot
+
+def to_local(poly, ox, oy, ang_deg):
+    a = math.radians(-ang_deg); c, s = math.cos(a), math.sin(a)
+    return [((x-ox)*c - (y-oy)*s, (x-ox)*s + (y-oy)*c) for x, y in poly]
+
+def edges(poly):
+    """yield (p0, u, n, L) for each edge, n = outward normal (polygon made CCW)"""
+    a = sum(poly[i][0]*poly[(i+1)%len(poly)][1]-poly[(i+1)%len(poly)][0]*poly[i][1] for i in range(len(poly)))
+    P = poly if a > 0 else poly[::-1]
+    for i in range(len(P)):
+        p, q = P[i], P[(i+1)%len(P)]
+        dx, dy = q[0]-p[0], q[1]-p[1]; L = math.hypot(dx, dy)
+        if L < 1e-6: continue
+        u = (dx/L, dy/L); n = (u[1], -u[0])
+        yield p, u, n, L
+
+def inside(poly, x, y, margin=0.0):
+    c = False; n = len(poly)
+    for i in range(n):
+        x0, y0 = poly[i]; x1, y1 = poly[(i+1)%n]
+        if (y0 > y) != (y1 > y) and x < (x1-x0)*(y-y0)/(y1-y0) + x0: c = not c
+    if not c: return False
+    if margin:
+        for p, u, nn, L in edges(poly):
+            d = (x-p[0])*nn[0] + (y-p[1])*nn[1]
+            if d > -margin: return False
+    return True

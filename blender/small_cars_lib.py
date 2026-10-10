@@ -246,129 +246,87 @@ def boolean_cut(bm, cutter_bm):
     return out
 
 
-# ----------------------------------------------------------------- surface projection ("decals")
-class Surf:
-    def __init__(self, bm):
-        bm2 = bm.copy()
-        bmesh.ops.triangulate(bm2, faces=bm2.faces[:])
-        self.bvh = BVHTree.FromBMesh(bm2)
-        bm2.free()
-
-    def ray(self, o, d):
-        loc, nor, idx, dist = self.bvh.ray_cast(o, d)
-        return loc, nor
+# ----------------------------------------------------------------- surface "decals" by carving the body mesh
+class Frame:
+    """2D outline axes (ea, eb) in 3D plus clip planes (co, no) that keep the side `no` points to."""
+    def __init__(self, ea, eb, clips):
+        self.ea, self.eb, self.clips = Vector(ea), Vector(eb), clips
 
 
-def side(s):
-    return lambda a, b: (Vector((s * 4, a, b)), Vector((-s, 0, 0)))      # outline (y, z)
+def side(s, xmin=0.54):           # outline (y, z); keep the +s side beyond |x| > xmin
+    return Frame((0, 1, 0), (0, 0, 1), [((s * xmin, 0, 0), (s, 0, 0))])
 
 
-def front():
-    return lambda a, b: (Vector((a, -8, b)), Vector((0, 1, 0)))           # outline (x, z)
+def front(ycut=-1.2):             # outline (x, z); keep y < ycut
+    return Frame((1, 0, 0), (0, 0, 1), [((0, ycut, 0), (0, -1, 0))])
 
 
-def rear():
-    return lambda a, b: (Vector((a, 8, b)), Vector((0, -1, 0)))           # outline (x, z)
+def rear(ycut=1.2):               # outline (x, z); keep y > ycut
+    return Frame((1, 0, 0), (0, 0, 1), [((0, ycut, 0), (0, 1, 0))])
 
 
-def top():
-    return lambda a, b: (Vector((a, b, 4)), Vector((0, 0, -1)))           # outline (x, y)
+def top(zcut=0.5):                # outline (x, y); keep z > zcut
+    return Frame((1, 0, 0), (0, 1, 0), [((0, 0, zcut), (0, 0, 1))])
 
 
-def _hit(surf, frame, a, b, off):
-    o, d = frame(a, b)
-    loc, nor = surf.ray(o, d)
-    if loc is None:
-        return None, None
-    return loc + nor * off, nor
+def _bisect(bm, co, no):
+    geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+    bmesh.ops.bisect_plane(bm, geom=geom, dist=1e-7, plane_co=Vector(co), plane_no=Vector(no),
+                           clear_inner=True, clear_outer=False)
 
 
-def project_poly(surf, pts, frame, off=0.005, cuts=3):
-    """Fill 2D polygon, subdivide, and drape onto the surface. returns (verts, faces)."""
-    bm = bmesh.new()
-    vs = [bm.verts.new((a, b, 0)) for a, b in pts]
-    f = bm.faces.new(vs)
-    bmesh.ops.triangulate(bm, faces=[f])
-    if cuts > 0:
-        bmesh.ops.subdivide_edges(bm, edges=bm.edges[:], cuts=cuts, use_grid_fill=True)
-    bm.verts.ensure_lookup_table()
-    pos, nors, bad = [], [], 0
+def carve(body_bm, pts, frame, off=0.004):
+    """Clip a copy of the body surface to the (convex) polygon `pts` prism-projected along the
+    frame's normal axis; push the patch out by `off`. Returns (verts, faces)."""
+    area = sum(pts[i][0] * pts[(i + 1) % len(pts)][1] - pts[(i + 1) % len(pts)][0] * pts[i][1]
+               for i in range(len(pts)))
+    P = list(pts) if area > 0 else list(reversed(pts))
+    bm = body_bm.copy()
+    for co, no in frame.clips:
+        _bisect(bm, co, no)
+    n = len(P)
+    for i in range(n):
+        p0, p1 = P[i], P[(i + 1) % n]
+        d = (p1[0] - p0[0], p1[1] - p0[1])
+        n2 = (-d[1], d[0])
+        no = frame.ea * n2[0] + frame.eb * n2[1]
+        co = frame.ea * p0[0] + frame.eb * p0[1]
+        _bisect(bm, co, no)
+    bm.faces.ensure_lookup_table()
+    bm.normal_update()
+    vn = {}
     for v in bm.verts:
-        p, n = _hit(surf, frame, v.co.x, v.co.y, off)
-        if p is None:
-            bad += 1
-            p, n = Vector((0, 0, 0)), None
-        pos.append(p)
-        nors.append(n)
-    if bad:
-        print('  [decal] %d/%d verts missed the surface' % (bad, len(bm.verts)))
-        if len(nors) - bad < 3:
-            bm.free()
-            return [], []
-        for i, v in enumerate(bm.verts):
-            if nors[i] is None:
-                j = min((j for j in range(len(pos)) if nors[j] is not None),
-                        key=lambda j: (bm.verts[j].co - v.co).length)
-                pos[i] = pos[j]
-                nors[i] = nors[j]
-    faces = []
-    for fc in bm.faces:
-        idx = [v.index for v in fc.verts]
-        if len(idx) < 3:
-            continue
-        a, b, c = pos[idx[0]], pos[idx[1]], pos[idx[2]]
-        nrm = (b - a).cross(c - a)
-        avg = nors[idx[0]] + nors[idx[1]] + nors[idx[2]]
-        if nrm.length < 1e-12:
-            continue
-        if nrm.dot(avg) < 0:
-            idx = idx[::-1]
-        faces.append(idx)
+        nn = Vector()
+        for f in v.link_faces:
+            nn += f.normal
+        vn[v] = nn.normalized() if nn.length > 0 else Vector((0, 0, 1))
+    idx = {}
+    verts, faces = [], []
+    for f in bm.faces:
+        fi = []
+        for v in f.verts:
+            if v not in idx:
+                idx[v] = len(verts)
+                verts.append(v.co + vn[v] * off)
+            fi.append(idx[v])
+        faces.append(fi)
     bm.free()
-    return pos, faces
+    return verts, faces
 
 
-def densify(pts, step):
+def strip_quads(pts, width, ext=0.0):
+    """Polyline -> list of convex rectangles (one per segment)."""
     out = []
     for i in range(len(pts) - 1):
         a, b = Vector(pts[i]), Vector(pts[i + 1])
-        n = max(1, int((b - a).length / step))
-        for j in range(n):
-            out.append(a.lerp(b, j / n))
-    out.append(Vector(pts[-1]))
-    return out
-
-
-def project_strip(surf, pts, width, frame, off=0.004, step=0.03):
-    """Thin ribbon along a 2D polyline draped on the surface (door lines, slats, trim)."""
-    sp = densify(pts, step)
-    verts, nors = [], []
-    for i, p in enumerate(sp):
-        if i == 0:
-            t = sp[1] - sp[0]
-        elif i == len(sp) - 1:
-            t = sp[-1] - sp[-2]
-        else:
-            t = sp[i + 1] - sp[i - 1]
-        t = Vector((t.x, t.y)).normalized()
+        t = (b - a)
+        if t.length < 1e-9:
+            continue
+        t.normalize()
+        a2, b2 = a - t * ext, b + t * ext
         nrm = Vector((-t.y, t.x)) * width / 2
-        for sgn in (1, -1):
-            a, b = p.x + sgn * nrm.x, p.y + sgn * nrm.y
-            pp, nn = _hit(surf, frame, a, b, off)
-            if pp is None:
-                pp = verts[-2] if len(verts) >= 2 else Vector((0, 0, 0))
-                nn = nors[-2] if len(nors) >= 2 else Vector((0, 0, 1))
-            verts.append(pp)
-            nors.append(nn)
-    faces = []
-    for i in range(len(sp) - 1):
-        a, b, c, d = 2 * i, 2 * i + 1, 2 * i + 3, 2 * i + 2
-        q = [a, b, c, d]
-        nrm = (verts[b] - verts[a]).cross(verts[d] - verts[a])
-        if nrm.dot(nors[a]) < 0:
-            q = q[::-1]
-        faces.append(q)
-    return verts, faces
+        out.append([tuple(a2 + nrm), tuple(a2 - nrm), tuple(b2 - nrm), tuple(b2 + nrm)])
+    return out
 
 
 def circle_pts(cx, cy, rx, ry=None, n=20, rot=0.0):
@@ -438,13 +396,14 @@ class Car:
             except ValueError:
                 pass
 
-    def decal(self, obj, matname, surf, pts, frame, off=0.005, cuts=3):
-        v, f = project_poly(surf, pts, frame, off, cuts)
+    def decal(self, obj, matname, body_bm, pts, frame, off=0.004, cuts=0):
+        v, f = carve(body_bm, pts, frame, off)
         self.add(obj, matname, v, f)
 
-    def strip(self, obj, matname, surf, pts, width, frame, off=0.004, step=0.03):
-        v, f = project_strip(surf, pts, width, frame, off, step)
-        self.add(obj, matname, v, f)
+    def strip(self, obj, matname, body_bm, pts, width, frame, off=0.004, step=0.0):
+        for q in strip_quads(pts, width, ext=width * 0.5):
+            v, f = carve(body_bm, q, frame, off)
+            self.add(obj, matname, v, f)
 
     # ---- primitives (world space)
     def box(self, obj, matname, c, size, bevel=0.0, rot=None):

@@ -112,7 +112,7 @@ def make_materials(paint=(0.92, 0.93, 0.95), paint_rough=0.25, paint_metal=0.5):
     mk('Livery_Yellow', (1.0, 0.72, 0.0), 0.35, 0.0, (1.0, 0.7, 0.0), 0.25)
     mk('Livery_Dark', (0.012, 0.02, 0.09), 0.4, 0.0)
     mk('Light_Red', (1.0, 0.05, 0.03), 0.2, 0.0, (1.0, 0.03, 0.01), 3.5)
-    mk('Light_Blue', (0.05, 0.2, 1.0), 0.2, 0.0, (0.05, 0.15, 1.0), 4.0)
+    mk('Light_Blue', (0.05, 0.2, 1.0), 0.2, 0.0, (0.0, 0.08, 1.0), 4.0)
     return mats
 
 
@@ -318,7 +318,7 @@ class Car:
         return True
 
     # ------------------------------------------------------------ conformed patches
-    def patch(self, gname, mat, outline, mapper, direction, offset=0.004, maxlen=0.04, depth=0.0, reject_bad=False):
+    def patch(self, gname, mat, outline, mapper, direction, offset=0.004, maxlen=0.06, depth=0.0, reject_bad=False):
         d = Vector(direction).normalized()
         b2 = bmesh.new()
         vs = [b2.verts.new((a, b, 0)) for a, b in outline]
@@ -552,15 +552,15 @@ class Car:
         """side_windows: polygons in (yy, z); windscreen/rear_window: polygons in (x, yy)."""
         for sx in (1, -1):
             for poly in side_windows:
-                self.patch('glass', 'Glass', chaikin(poly, 2), self.side_mapper(sx), (-sx, 0, 0), offset=off, maxlen=0.05)
-        self.patch('glass', 'Glass', chaikin(windscreen, 2), self.top_mapper(), (0, 0, -1), offset=off, maxlen=0.06)
-        self.patch('glass', 'Glass', chaikin(rear_window, 2), self.top_mapper(), (0, 0, -1), offset=off, maxlen=0.06)
+                self.patch('glass', 'Glass', chaikin(poly, 2), self.side_mapper(sx), (-sx, 0, 0), offset=off, maxlen=0.07)
+        self.patch('glass', 'Glass', chaikin(windscreen, 2), self.top_mapper(), (0, 0, -1), offset=off, maxlen=0.08)
+        self.patch('glass', 'Glass', chaikin(rear_window, 2), self.top_mapper(), (0, 0, -1), offset=off, maxlen=0.08)
 
     def surround(self, outline, mapper, direction, grow=1.15, offset=0.002):
         cx = sum(p[0] for p in outline) / len(outline)
         cy = sum(p[1] for p in outline) / len(outline)
         o2 = [(cx + (a - cx) * grow, cy + (b - cy) * grow) for a, b in outline]
-        self.patch('trim', 'Trim', o2, mapper, direction, offset=offset, maxlen=0.04)
+        self.patch('trim', 'Trim', o2, mapper, direction, offset=offset, maxlen=0.07)
 
     def side_band(self, y0, y1, z0, rowh, rows=2, tilelen=0.24, skip=None):
         n = max(1, round((y1 - y0) / tilelen))

@@ -51,7 +51,7 @@ car.handle(2.58, 0.90); car.handle(3.38, 0.90)
 car.mirror(1.93, 0.785, 0.95)
 
 # front: lights, grille, intake, plate
-hl = [(0.27, 0.575), (0.45, 0.56), (0.62, 0.585), (0.735, 0.625), (0.74, 0.69), (0.66, 0.735), (0.52, 0.745), (0.38, 0.715)]
+hl = [(0.27, 0.58), (0.43, 0.565), (0.58, 0.585), (0.665, 0.625), (0.67, 0.685), (0.60, 0.73), (0.49, 0.74), (0.37, 0.715)]
 for pts in (hl, mirror_x(hl)):
     car.surround(chaikin(pts, 1), F, FD, 1.14)
     car.patch('lights', 'HeadLight', chaikin(pts, 1), F, FD, offset=0.005, maxlen=0.03)

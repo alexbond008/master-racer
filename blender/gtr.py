@@ -142,7 +142,7 @@ for k in range(3):
 patch(trim, surf, 'F', quad_grid([(-0.46, 0.545), (0.46, 0.545), (0.46, 0.615), (-0.46, 0.615)], 16, 2), 'Trim', lift=0.004)  # upper grille
 patch(trim, surf, 'F', quad_grid([(-0.26, 0.10), (0.26, 0.10), (0.26, 0.15), (-0.26, 0.15)], 6, 1), 'Plate', lift=0.012) if False else None
 patch(trim, surf, 'F', quad_grid([(-0.26, 0.32), (0.26, 0.32), (0.26, 0.43), (-0.26, 0.43)], 8, 2), 'Plate', lift=0.012)  # front plate
-add_box(trim, (0, -2.30, 0.12), (1.28, 0.05, 0.02), 'Trim')            # splitter lip
+add_box(trim, (0, -2.283, 0.12), (1.28, 0.05, 0.02), 'Trim')            # splitter lip
 
 # rear
 for sx in (1, -1):
@@ -154,8 +154,8 @@ patch(trim, surf, 'R', quad_grid([(-0.42, 0.74), (0.42, 0.74), (0.42, 0.865), (-
 patch(trim, surf, 'R', quad_grid([(-0.26, 0.45), (0.26, 0.45), (0.26, 0.56), (-0.26, 0.56)], 8, 2), 'Plate', lift=0.01)      # rear plate
 patch(trim, surf, 'R', quad_grid([(-0.62, 0.30), (0.62, 0.30), (0.66, 0.40), (-0.66, 0.40)], 14, 2), 'Trim', lift=0.004)   # lower valance
 for sx in (1, -1):                                                     # twin exhausts
-    add_cyl(trim, (sx * 0.36, 2.17, 0.285), (sx * 0.36, 2.31, 0.285), 0.052, 0.052, 18, 'Chrome')
-    add_cyl(trim, (sx * 0.36, 2.30, 0.285), (sx * 0.36, 2.312, 0.285), 0.040, 0.040, 18, 'Trim')
+    add_cyl(trim, (sx * 0.36, 2.16, 0.285), (sx * 0.36, 2.30, 0.285), 0.052, 0.052, 18, 'Chrome')
+    add_cyl(trim, (sx * 0.36, 2.29, 0.285), (sx * 0.36, 2.302, 0.285), 0.040, 0.040, 18, 'Trim')
 # diffuser
 dif = [m for m in ()]
 add_hex(trim, [(-0.62, 2.12, 0.20), (0.62, 2.12, 0.20), (0.62, 2.26, 0.20), (-0.62, 2.26, 0.20),

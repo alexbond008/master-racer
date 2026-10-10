@@ -24,7 +24,7 @@ PRESETS = {
     'HeadLight': ((1, 0.95, 0.8, 1), 0.1, 0.0, (1, 0.93, 0.75), 4.0),
     'TailLight': ((0.9, 0.02, 0.02, 1), 0.2, 0.0, (1, 0.03, 0.02), 4.0),
     'Plate': ((0.95, 0.75, 0.08, 1), 0.4, 0.0, None, 0),
-    'Emit_Window': ((1, 0.85, 0.55, 1), 0.3, 0.0, (1, 0.82, 0.5), 3.0),
+    'Emit_Window': ((1, 0.78, 0.42, 1), 0.3, 0.0, (1, 0.72, 0.35), 3.0),
     'Emit_Sign': ((1, 0.55, 0.05, 1), 0.3, 0.0, (1, 0.5, 0.04), 4.5),
     'Emit_Route': ((1, 0.95, 0.7, 1), 0.3, 0.0, (1, 0.93, 0.62), 4.0),
 }
@@ -417,3 +417,22 @@ def wheel_object(name, hub, r, width, rim_r, side, offsets=(0.0,), style='alloy'
     ob = p.to_object(smooth_angle=40)
     ob.location = hub
     return ob
+
+
+def cap_pane(y_plane, xs, zs, deform, off, nx=4, nz=2):
+    """quad grid on an end-cap plane (y=y_plane), passed through the same body deform; returns temp bmesh"""
+    b = bmesh.new()
+    grid = []
+    for i in range(nx + 1):
+        row = []
+        for j in range(nz + 1):
+            x = lerp(xs[0], xs[1], i / nx)
+            z = lerp(zs[0], zs[1], j / nz)
+            px, py, pz = deform(x, y_plane, z)
+            row.append(b.verts.new((px, py + off, pz)))
+        grid.append(row)
+    for i in range(nx):
+        for j in range(nz):
+            f = b.faces.new([grid[i][j], grid[i + 1][j], grid[i + 1][j + 1], grid[i][j + 1]])
+            f.smooth = True
+    return b

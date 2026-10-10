@@ -76,7 +76,7 @@ export const NPC_CARS = {
   },
   bus: {
     id: 'bus', name: 'LONDON BUS', color: '#d4231e', vmax: 24, t60: 28, grip: 0.8, steer: 0.4, mass: 11000, bus: true,
-    L: 11.2, W: 2.5, wheelR: 0.5, wb: 5.8, gc: 0.35,
+    L: 10.2, W: 2.55, wheelR: 0.5, wb: 5.6, gc: 0.35,
     noseY: 1.3, hoodY: 1.4, tailY: 1.5, beltY: 1.5,
     cabin: { z0: 5.4, z1: 5.3, z2: -5.4, z3: -5.5, roofY: 4.3 },
   },

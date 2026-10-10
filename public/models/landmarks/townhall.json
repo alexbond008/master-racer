@@ -1,0 +1,17 @@
+{
+ "footprint": [
+  76.2,
+  65.4
+ ],
+ "height": 41.0,
+ "notes": "Lambeth Town Hall: red-brick body 15 m with Portland stone rusticated ground floor/quoins/cornice/balustrade, stone curved corner bay at +X end with doorway, 41 m clock tower (4 lit clock faces, open pediments, corner figures, scrolled-buttress belfry, crown finial) rising behind the corner bay at (30.6,-9.6). Footprint = OSM polygon, origin = footprint centroid, long street front faces -Y.",
+ "bbox_x": [
+  -37.38,
+  41.1
+ ],
+ "bbox_y": [
+  -19.33,
+  47.96
+ ],
+ "triangles": 24890
+}

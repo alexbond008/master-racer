@@ -5,7 +5,7 @@ dark tarred plinth + door, small windows tier by tier, white lintels, dark curb 
 """
 import sys, os, math
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from lm_common import *
+from lbx_common import *
 
 reset_scene()
 B = Builder()
