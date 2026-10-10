@@ -54,8 +54,8 @@ stations = [st_of(y) for y in ys]
 
 # right-half ring (bottom centre -> top centre); indices used for window patches
 def ring(hw, z):
-    return [(0, 0.80), (hw - 0.15, 0.80), (hw, 0.90), (hw, 1.15), (hw, 1.83), (hw, 2.02), (hw, 2.20), (hw, 2.88),
-            (hw - 0.003, 3.00), (hw - 0.010, 3.68), (hw - 0.020, 3.86), (hw - 0.06, 4.04), (hw - 0.18, 4.21),
+    return [(0, 0.80), (hw - 0.15, 0.80), (hw, 0.90), (hw, 1.15), (hw, 1.92), (hw, 2.02), (hw, 2.20), (hw, 2.88),
+            (hw - 0.003, 3.00), (hw - 0.010, 3.76), (hw - 0.020, 3.86), (hw - 0.06, 4.04), (hw - 0.18, 4.21),
             (hw - 0.50, 4.325), (0, 4.35)]
 
 
@@ -74,7 +74,8 @@ def deform(x, y, z):
     return (x, y + 0.50 * wf * s ** 1.6 - 0.22 * wr * s ** 1.5, z)
 
 
-hull = Loft(stations, hull_prof, deform=deform)
+hull = Loft(stations, hull_prof, deform=deform,
+            cap_holes={0: [(3, 5, 0.88), (8, 10, 0.88)], -1: [(8, 10, 0.68)]})
 
 
 def skirt_prof(st):
@@ -97,27 +98,36 @@ def I(y):
     return IDX[round(y, 3)]
 
 
+del_faces = []
 for side in (1, -1):
     for (a, b) in lower_bays:
         if side == 1 and (a, b) == EXIT_DOOR:
-            glass_b.append(hull.extract(hull.patch(I(a), I(b), 2, 5, side), GOFF))
+            fc = hull.patch(I(a), I(b), 2, 5, side)
         else:
-            emit_b.append(hull.extract(hull.patch(I(a), I(b), 3, 4, side), GOFF))
-            glass_b.append(hull.extract(hull.patch(I(a), I(b), 4, 5, side), GOFF))
+            fc = hull.patch(I(a), I(b), 3, 5, side)
+            emit_b.append(hull.extract(hull.patch(I(a), I(b), 4, 5, side), -0.07))   # lit ceiling strip behind the glass
+        glass_b.append(hull.extract(fc, GOFF)); del_faces += fc
     for (a, b) in upper_bays:
-        emit_b.append(hull.extract(hull.patch(I(a), I(b), 8, 9, side), GOFF))
-        glass_b.append(hull.extract(hull.patch(I(a), I(b), 9, 10, side), GOFF))
+        fc = hull.patch(I(a), I(b), 8, 10, side)
+        glass_b.append(hull.extract(fc, GOFF)); del_faces += fc
+        emit_b.append(hull.extract(hull.patch(I(a), I(b), 9, 10, side), -0.07))
     a, b = FRONT_DOOR
-    glass_b.append(hull.extract(hull.patch(I(a), I(b), 2 if side == 1 else 3, 5, side), GOFF))
+    fc = hull.patch(I(a), I(b), 2 if side == 1 else 3, 5, side)
+    glass_b.append(hull.extract(fc, GOFF)); del_faces += fc
     trim_b.append(hull.extract(hull.patch(I(ADVERT[0]), I(ADVERT[1]), 6, 7, side), 0.004))
 
-# end panes: front (y=-5.0) and rear (y=+5.0) planes pass through the same deform
+del_keys = set()
+for f in del_faces:
+    c = f.calc_center_median()
+    del_keys.add((round(c.x, 3), round(c.y, 3), round(c.z, 3)))
+
+# end panes: front / rear caps have real openings
+glass_b.append(hull.hole_pane(0, 3, 5, 0.88, -0.006, nx=8))      # lower windscreen
+glass_b.append(hull.hole_pane(0, 8, 10, 0.88, -0.006, nx=8))     # upper windscreen
+glass_b.append(hull.hole_pane(-1, 8, 10, 0.68, +0.006, nx=6))    # rear window upper
 FY = -YEND
-glass_b.append(cap_pane(FY, (-0.93, 0.93), (1.20, 2.05), deform, -0.012, nx=6, nz=2))   # lower windscreen
-glass_b.append(cap_pane(FY, (-0.90, 0.90), (3.02, 3.86), deform, -0.012, nx=6, nz=3))   # upper windscreen
 sign_b = [cap_pane(FY, (-0.52, 0.52), (2.36, 2.70), deform, -0.014, nx=2, nz=1)]           # destination blind
 route_b = [cap_pane(FY, (0.56, 0.90), (2.36, 2.70), deform, -0.014, nx=1, nz=1)]           # route number box
-glass_b.append(cap_pane(YEND, (-0.70, 0.70), (3.05, 3.80), deform, +0.012, nx=4, nz=2))   # rear window upper
 
 # ----------------------------------------------------------------- bodies
 def loft_obj(l, name, matname):
@@ -139,7 +149,15 @@ for yc, xin, xout, sx_list in ((YF, 0.55, 1.35, (1, -1)), (YR, 0.55, 1.35, (1, -
             bpy.data.objects.remove(c)
 
 body = Part('body', ['Paint'])
-bh = bmesh.new(); bh.from_mesh(hull_ob.data); body.merge(bh, 'Paint'); bh.free()
+bh = bmesh.new(); bh.from_mesh(hull_ob.data)
+dl = []
+for f in bh.faces:
+    c = f.calc_center_median()
+    if (round(c.x, 3), round(c.y, 3), round(c.z, 3)) in del_keys:
+        dl.append(f)
+print('DEL window faces', len(dl), 'expected', len(del_keys))
+bmesh.ops.delete(bh, geom=dl, context='FACES_ONLY')
+body.merge(bh, 'Paint'); bh.free()
 bpy.data.objects.remove(hull_ob)
 # roof details (painted)
 box(body, (0, 3.9, 4.33), (1.3, 1.1, 0.04), 'Paint', bevel=0.015)
@@ -249,6 +267,91 @@ text_mesh(sg, '159', (xsd + 0.007, -3.55, 2.52), 0.17, 'Trim', depth=0.008, rot=
 text_mesh(sg, 'STREATHAM', (xsd + 0.007, -4.35, 2.52), 0.12, 'Trim', depth=0.008, rot=rots)
 sg_ob = sg.to_object(smooth_angle=60)
 
+# ----------------------------------------------------------------- interior (lit, populated)
+mat('Interior'); mat('Seat'); mat('Driver')
+set_emission('Interior', (1.0, 0.8, 0.55), 0.35)
+inte = Part('interior', ['Interior', 'Seat', 'Plate', 'Chrome', 'Emit_Window'])
+pax = Part('passengers', ['Driver'])
+F1, F2 = 0.86, 2.36          # lower / upper floor tops
+IW = 1.12                    # interior half width
+# floors, upper ceiling
+box(inte, (0, 0.0, F1 - 0.03), (2 * IW, 9.5, 0.06), 'Interior')
+box(inte, (0, -1.25, F2 - 0.025), (2 * IW, 6.9, 0.05), 'Interior')       # upper floor front part (y -4.7 .. 2.2)
+box(inte, (0, 4.125, F2 - 0.025), (2 * IW, 1.25, 0.05), 'Interior')       # rear part (3.5 .. 4.75)
+box(inte, (-0.425, 2.85, F2 - 0.025), (1.35, 1.3, 0.05), 'Interior')      # beside the stairwell
+box(inte, (0, 0.15, 4.02), (2.0, 9.0, 0.03), 'Interior')                  # upper ceiling
+# ceiling light strips (glow) on both decks
+for xs_ in (0.55, -0.55):
+    box(inte, (xs_, 0.2, 2.31), (0.10, 8.2, 0.02), 'Emit_Window')
+    box(inte, (xs_, 0.15, 3.99), (0.10, 8.6, 0.02), 'Emit_Window')
+
+
+def seat_pair(xc, y, fl, w=0.80):
+    box(inte, (xc, y, fl + 0.13), (w - 0.06, 0.40, 0.26), 'Interior')
+    box(inte, (xc, y, fl + 0.33), (w, 0.46, 0.14), 'Seat', bevel=0.025)
+    box(inte, (xc, y + 0.22, fl + 0.66), (w, 0.07, 0.52), 'Seat', bevel=0.025)
+
+
+lower_rows = [-3.3 + 0.75 * k for k in range(11)]
+for y in lower_rows:
+    if y > 4.4:
+        continue
+    seat_pair(-0.70, y, F1)                               # right side (-X)
+    if not (-0.5 < y < 1.5) and not (1.5 <= y <= 3.7):    # left: skip exit door + stairs
+        seat_pair(0.70, y, F1)
+upper_rows = [-4.05 + 0.76 * k for k in range(11)]
+for y in upper_rows:
+    seat_pair(-0.70, y, F2)
+    if not (1.6 < y < 3.7):
+        seat_pair(0.70, y, F2)
+# stanchion poles (yellow) and overhead rails
+for y in (-3.3, -1.8, -0.3, 1.2, 2.7, 4.2):
+    for xs_ in (0.30, -0.30):
+        cyl(inte, (xs_, y + 0.38, (F1 + 2.30) / 2), 'z', 0.022, 2.30 - F1, 'Plate', seg=6)
+for y in (-4.05, -2.5, -1.0, 0.5, 2.0, 3.5):
+    for xs_ in (0.30, -0.30):
+        cyl(inte, (xs_, y + 0.38, (F2 + 3.98) / 2), 'z', 0.022, 3.98 - F2, 'Plate', seg=6)
+for xs_ in (0.30, -0.30):
+    cyl(inte, (xs_, 0.2, 2.22), 'y', 0.018, 7.5, 'Plate', seg=6)
+    cyl(inte, (xs_, 0.2, 3.90), 'y', 0.018, 8.0, 'Plate', seg=6)
+# staircase (left rear, ascending towards the rear)
+nst = 9
+for i in range(nst):
+    top = F1 + (F2 - F1) * (i + 1) / nst
+    box(inte, (0.66, 1.72 + 0.20 * i + 0.10, (F1 + top) / 2), (0.80, 0.20, top - F1), 'Interior')
+box(inte, (0.27, 2.62, 1.60), (0.04, 1.9, 1.5), 'Interior')                # stair wall
+cyl(inte, (0.28, 2.62, 2.15), 'y', 0.02, 1.9, 'Plate', seg=6, r2=0.02)     # handrail
+# front: dash, driver's cab (right-hand drive, driver at -X)
+DXc = -0.62
+box(inte, (-0.3, -4.80, 1.10), (1.7, 0.30, 0.50), 'Interior', bevel=0.03)   # dash
+box(inte, (DXc, -4.63, 1.40), (0.50, 0.15, 0.12), 'Interior', bevel=0.02)  # binnacle
+wheel_ring(inte, (DXc, -4.48, 1.42), 0.21, 0.016, 'Interior',
+           Matrix.Rotation(math.pi / 2, 3, 'Z') @ Matrix.Rotation(math.radians(-30), 3, 'Y'), seg=20)
+cyl(inte, (DXc, -4.58, 1.30), 'y', 0.035, 0.30, 'Interior', seg=8)
+box(inte, (DXc, -4.10, 1.02), (0.52, 0.52, 0.16), 'Seat', bevel=0.03)         # driver seat
+box(inte, (DXc, -3.86, 1.45), (0.52, 0.10, 0.70), 'Seat', bevel=0.03)
+box(inte, (-0.22, -4.15, 1.30), (0.05, 1.20, 1.0), 'Interior')                 # cab screen
+# driver silhouette
+box(pax, (DXc, -4.07, 1.52), (0.42, 0.24, 0.56), 'Driver', bevel=0.04)
+sphere(pax, (DXc, -4.07, 1.95), 0.105, 'Driver', scale=(1, 1.05, 1.15))
+for sx in (1, -1):
+    box(pax, (DXc + sx * 0.22, -4.30, 1.55), (0.08, 0.46, 0.08), 'Driver', rot=Matrix.Rotation(math.radians(10), 3, 'X'))
+    box(pax, (DXc + sx * 0.11, -4.30, 1.17), (0.16, 0.55, 0.15), 'Driver')
+
+
+def seated(xw, y, fl, torso_z, head_z):
+    box(pax, (xw, y + 0.06, fl + torso_z), (0.38, 0.22, 0.56), 'Driver', bevel=0.04)
+    sphere(pax, (xw, y + 0.04, fl + head_z), 0.105, 'Driver', scale=(1, 1.05, 1.15))
+
+
+for (xw, y) in ((-0.90, -2.55), (-0.90, 0.45), (0.90, -1.8), (-0.90, 3.45), (0.50, -3.3 + 0.75 * 6)):
+    seated(xw, y, F1, 0.62, 0.97)
+for (xw, y) in ((-0.90, -4.05), (0.90, -3.29), (-0.90, -1.77), (0.90, -0.25), (-0.50, 0.51), (-0.90, 2.03), (0.90, 3.55),
+                (-0.90, 4.07), (0.50, -2.53)):
+    seated(xw, y, F2, 0.76, 1.19)
+inte_ob = inte.to_object(smooth_angle=45)
+pax_ob = pax.to_object(smooth_angle=45)
+
 # ----------------------------------------------------------------- wheels
 FRONT_X, REAR_X = 1.04, 0.96
 for nm, yc, sxx, xx, offs, wd in (('wheel_fl', YF, 1, FRONT_X, (0.0,), 0.30), ('wheel_fr', YF, -1, FRONT_X, (0.0,), 0.30),
@@ -258,7 +361,7 @@ for nm, yc, sxx, xx, offs, wd in (('wheel_fl', YF, 1, FRONT_X, (0.0,), 0.30), ('
 
 # ----------------------------------------------------------------- names
 for ob, nm in ((body_ob, 'body'), (glass_ob, 'glass'), (emit_ob, 'emit_window'), (trim_ob, 'trim'), (lights_ob, 'lights'),
-               (mir_ob, 'mirrors'), (sg_ob, 'emit_sign')):
+               (mir_ob, 'mirrors'), (sg_ob, 'emit_sign'), (inte_ob, 'interior'), (pax_ob, 'passengers')):
     ob.name = nm
     ob.data.name = nm
 

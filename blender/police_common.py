@@ -600,10 +600,15 @@ class Car:
             self.patch('glass', 'Glass', chaikin(rear_window, 2), self.top_mapper(), (0, 0, -1), offset=off, maxlen=0.08)
 
     def surround(self, outline, mapper, direction, grow=1.15, offset=0.002):
+        """black bezel RING around a lamp (a ring, so any pin-hole in the lamp shows white paint, not black)."""
         cx = sum(p[0] for p in outline) / len(outline)
         cy = sum(p[1] for p in outline) / len(outline)
         o2 = [(cx + (a - cx) * grow, cy + (b - cy) * grow) for a, b in outline]
-        self.patch('trim', 'Trim', o2, mapper, direction, offset=offset, maxlen=0.03)
+        n = len(outline)
+        for i in range(n):
+            j = (i + 1) % n
+            self.patch('trim', 'Trim', [o2[i], o2[j], (outline[j][0], outline[j][1]), (outline[i][0], outline[i][1])],
+                       mapper, direction, offset=offset, maxlen=0.03)
 
     def side_band(self, y0, y1, z0, rowh, rows=2, tilelen=0.24, skip=None):
         n = max(1, round((y1 - y0) / tilelen))

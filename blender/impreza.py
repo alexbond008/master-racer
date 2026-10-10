@@ -74,14 +74,22 @@ for sx in (1, -1):
     for y in (-WB / 2, WB / 2):
         flare_lip(sx, y, R_W, R_ARCH)
 
-# ---------------------------------------------------------------- glass
-car.decal('glass', 'Glass', S, [(-0.66, 0.97), (0.66, 0.97), (0.56, 1.35), (-0.56, 1.35)], L.front(0.0), 0.004)
-car.decal('glass', 'Glass', S, [(-0.52, 1.045), (0.52, 1.045), (0.45, 1.285), (-0.45, 1.285)], L.rear(0.9), 0.004)
+# ---------------------------------------------------------------- glass (windows are real openings)
+wins = []
+
+
+def win(pts, frame):
+    wins.append((pts, frame))
+    car.decal('glass', 'Glass', S, pts, frame, 0.001)
+
+
+win([(-0.66, 0.97), (0.66, 0.97), (0.56, 1.35), (-0.56, 1.35)], L.front(0.0))
+win([(-0.52, 1.045), (0.52, 1.045), (0.45, 1.285), (-0.45, 1.285)], L.rear(0.9))
 for s in (1, -1):
     door = [(-0.60, 0.975), (-0.12, 1.352), (0.0, 1.362), (0.42, 1.362), (0.60, 1.31), (0.64, 0.975)]
     quarter = [(0.74, 0.975), (0.72, 1.30), (0.93, 1.28), (1.12, 1.19), (1.25, 1.07), (1.33, 0.975)]
-    car.decal('glass', 'Glass', S, door, L.side(s, 0.5), 0.004)
-    car.decal('glass', 'Glass', S, quarter, L.side(s, 0.5), 0.004)
+    win(door, L.side(s, 0.5))
+    win(quarter, L.side(s, 0.5))
     # shut lines
     car.strip('trim', 'Trim', S, [(-0.62, 0.22), (-0.64, 0.93)], 0.006, L.side(s), 0.004)
     car.strip('trim', 'Trim', S, [(0.70, 0.22), (0.68, 0.96)], 0.006, L.side(s), 0.004)
@@ -185,15 +193,12 @@ for sx in (1, -1):
     car.box('mirrors', 'Paint', (sx * 0.855, -0.62, 1.00), (0.17, 0.05, 0.022), 0.008)
     car.ellipsoid('mirrors', 'Chrome', (sx * 0.9795, -0.60, 1.03), (0.004, 0.07, 0.043), 10, 6)
 
-# ---------------------------------------------------------------- interior
-car.box('interior', 'Interior', (0, 0.1, 0.30), (1.4, 2.4, 0.02))
-for sx in (-0.34, 0.34):
-    car.box('interior', 'Interior', (sx, 0.0, 0.50), (0.48, 0.55, 0.14), 0.03)
-    car.box('interior', 'Interior', (sx, 0.22, 0.82), (0.48, 0.12, 0.62), 0.03)
-car.box('interior', 'Interior', (0, 0.95, 0.60), (1.3, 0.5, 0.16), 0.03)
-car.box('interior', 'Interior', (0, 1.15, 0.90), (1.3, 0.10, 0.4), 0.03)
-car.box('interior', 'Interior', (0, -0.50, 0.80), (1.4, 0.28, 0.12), 0.03)
-car.box('interior', 'Interior', (-0.34, -0.30, 0.88), (0.32, 0.025, 0.32), 0.01, rot=Matrix.Rotation(0.5, 4, 'X'))
+# ---------------------------------------------------------------- interior (windows are open, so it is visible)
+L.cut_openings(car.objs['body'][0], wins)
+shell = L.interior_shell(keys, -0.74, 1.45, 0.30, 0.05, wins, cutter=L.wheel_cutter(hubs_cut, R_ARCH + 0.01, 0.54, 1.3, seg=40))
+car.add_bm('interior', 'Interior', shell)
+L.furnish(car, dict(dside=-1, sx=0.34, floor=0.30, dash=(-0.76, 0.30, 0.87, 0.72), wheel=(-0.40, 0.88, 0.185, 0.70),
+                    seat=(0.10, 0.50), rear=(0.88, 1.10, 1.22, 0.46), shelf=(1.36, 0.95, 0.30, 1.0)))
 
 # ---------------------------------------------------------------- wheels
 hubs = {}

@@ -79,7 +79,7 @@ REAR_Y = 2.0
 cst = []
 IDX = {}
 for t in ts:
-    cst.append(dict(y=FRONT_Y + 0.20 * t, ix=0.14 * f_end(t), iz=0.06 * f_end(t)))
+    cst.append(dict(y=FRONT_Y + 0.20 * t, ix=0.14 * f_end(t), iz=0.03 * f_end(t)))
 for name, y in [('wA', -0.85), ('m1', -0.55), ('m2', -0.25), ('wB', -0.05), ('pB', 0.10), ('wC', 1.20), ('pC', 1.36),
                 ('wD', 1.80)]:
     IDX[name] = len(cst)
@@ -90,42 +90,28 @@ cst.append(dict(y=REAR_Y, ix=0.20, iz=0.06))
 # rear stations (t reversed) -> fix first elem to end: rebuild properly
 cst = cst[:IDX['wD'] + 1]
 for t in reversed(ts[:-1]):
-    cst.append(dict(y=REAR_Y - 0.20 * t, ix=0.20 * f_end(t), iz=0.06 * f_end(t)))
-cabin = Loft(cst, cab_prof, deform=cab_deform)
+    cst.append(dict(y=REAR_Y - 0.20 * t, ix=0.20 * f_end(t), iz=0.04 * f_end(t)))
+cabin = Loft(cst, cab_prof, deform=cab_deform, cap_holes={0: [(3, 4, 0.60)], -1: [(3, 4, 0.56)]})
 
 # glass patches on the cabin sides
 glass_b = []  # list of (bmesh)
 GOFF = 0.007
 side_windows = [('wA', 'wB'), ('pB', 'wC') if False else ('pB', 'wC'), ('pC', 'wD')]
+to_del = []
 for side in (1, -1):
     for a, b in [('wA', 'wB'), ('pB', 'wC'), ('pC', 'wD')]:
         # pillar between wB..pB is paint; rear door window = pB..wC ; quarter = pC..wD
         fcs = cabin.patch(IDX[a], IDX[b], 3, 4, side)
         glass_b.append(cabin.extract(fcs, GOFF))
+        to_del += fcs
 
 
-def cap_pane(y_plane, xs, zs, deform, off, nx=4, nz=2):
-    b = bmesh.new()
-    grid = []
-    for i in range(nx + 1):
-        row = []
-        for j in range(nz + 1):
-            x = lerp(xs[0], xs[1], i / nx)
-            z = lerp(zs[0], zs[1], j / nz)
-            px, py, pz = deform(x, y_plane, z)
-            row.append(b.verts.new((px, py + off, pz)))
-        grid.append(row)
-    for i in range(nx):
-        for j in range(nz):
-            f = b.faces.new([grid[i][j], grid[i + 1][j], grid[i + 1][j + 1], grid[i][j + 1]])
-            f.smooth = True
-    return b
-
-
-# windscreen & rear glass (planes at the end caps, sheared like the body)
-glass_b.append(cap_pane(FRONT_Y, (-0.60, 0.60), (1.19, 1.53), cab_deform, -0.010))
-glass_b[-1].normal_update()
-glass_b.append(cap_pane(REAR_Y, (-0.56, 0.56), (1.20, 1.52), cab_deform, +0.010))
+# windscreen & rear glass: the cabin caps are ladders with real openings
+glass_b.append(cabin.hole_pane(0, 3, 4, 0.60, -0.006))
+glass_b.append(cabin.hole_pane(-1, 3, 4, 0.56, +0.006))
+for i in range(len(cst) - 1):  # open the cabin floor so the interior is visible from the windows
+    to_del += [cabin.fmap[(i, 0)], cabin.fmap[(i, cabin.N - 1)]]
+cabin.delete(to_del)
 
 # ---------------------------------------------------------------- build body object
 def finish_loft(l, name, matname):
@@ -147,6 +133,11 @@ for yc in (YF, YR):
         c = cutter_cyl('cut', (yc, WR), arch_R, sx * 0.55, sx * 1.0)
         boolean_cut(hull_ob, c)
         bpy.data.objects.remove(c)
+
+# open the hull top inside the cabin footprint (interior floor sits lower)
+c = cutter_box('cut', (-0.79, -1.20, 0.50), (0.79, 1.95, 1.35))
+boolean_cut(hull_ob, c)
+bpy.data.objects.remove(c)
 
 # merge hull + cabin + bumpers into BODY
 body = Part('body', ['Paint'])
@@ -171,6 +162,7 @@ glass = Part('glass', ['Glass'])
 for b in glass_b:
     glass.merge(b, 'Glass')
     b.free()
+box(glass, (0, 0.10, 1.15), (1.54, 0.012, 0.80), 'Glass')          # partition glass
 glass_ob = glass.to_object()
 
 # ---------------------------------------------------------------- trim (black plastic, chrome, plate)
@@ -240,28 +232,52 @@ for sx in (1, -1):
     box(mir, (sx * 0.9005, -0.93, 1.19), (0.002, 0.085, 0.15), 'Chrome')
 mir_ob = mir.to_object(smooth_angle=45)
 
-# ---------------------------------------------------------------- interior (seats, dash, wheel) mostly visible via windows
-inte = Part('interior', ['Interior'])
-box(inte, (0, 1.40, 0.90), (1.25, 0.55, 0.20), 'Interior', bevel=0.04)       # rear bench
-box(inte, (0, 1.72, 1.20), (1.25, 0.14, 0.50), 'Interior', bevel=0.04)       # bench back
-box(inte, (0.0, 0.55, 0.62), (1.0, 0.18, 0.26), 'Interior', bevel=0.03)       # folding seats
-box(inte, (-0.38, -0.35, 0.95), (0.50, 0.50, 0.16), 'Interior', bevel=0.04)  # driver seat
-box(inte, (-0.38, 0.0, 1.22), (0.50, 0.12, 0.50), 'Interior', bevel=0.04)
-box(inte, (0.0, 0.05, 1.12), (1.62, 0.04, 0.40), 'Interior')                # partition
-box(inte, (0, -0.90, 1.12), (1.5, 0.30, 0.14), 'Interior', bevel=0.04)       # dash
-cyl(inte, (-0.38, -0.78, 1.20), 'y', 0.18, 0.025, 'Interior', seg=18)
+# ---------------------------------------------------------------- interior (floor lowered, seen through transparent glass)
+inte = Part('interior', ['Interior', 'Emit_Window'])
+FLOOR = 0.45
+box(inte, (0, 0.40, FLOOR - 0.02), (1.56, 3.10, 0.04), 'Interior')                     # floor
+DX = -0.40                                                                             # driver on the right (-X)
+# driver's cab: dash, binnacle, wheel, seat, driver silhouette
+box(inte, (0, -1.00, 0.85), (1.56, 0.34, 0.55), 'Interior', bevel=0.03)               # dash
+box(inte, (DX, -0.90, 1.16), (0.34, 0.12, 0.12), 'Interior', bevel=0.02)             # instrument binnacle
+box(inte, (0.30, -1.0, 1.15), (0.30, 0.18, 0.04), 'Interior')                         # glovebox lid / luggage shelf
+wheel_ring(inte, (DX, -0.68, 1.06), 0.19, 0.014, 'Interior', Matrix.Rotation(math.pi / 2, 3, 'Z') @ Matrix.Rotation(math.radians(-35), 3, 'Y'))
+cyl(inte, (DX, -0.80, 0.98), 'y', 0.03, 0.22, 'Interior', seg=8)                       # steering column
+box(inte, (DX, -0.28, 0.55), (0.50, 0.50, 0.14), 'Interior', bevel=0.03)              # seat cushion
+box(inte, (DX, -0.02, 0.90), (0.50, 0.10, 0.60), 'Interior', bevel=0.03)              # seat back
+box(inte, (DX, 0.0, 1.24), (0.26, 0.08, 0.16), 'Interior', bevel=0.02)                # headrest
+box(inte, (DX, -0.17, 0.97), (0.40, 0.22, 0.52), 'Interior', bevel=0.04)              # driver torso
+sphere(inte, (DX, -0.17, 1.40), 0.105, 'Interior', scale=(1, 1.05, 1.15))              # driver head
+for sx in (1, -1):
+    box(inte, (DX + sx * 0.21, -0.42, 1.00), (0.08, 0.42, 0.08), 'Interior', rot=Matrix.Rotation(math.radians(8), 3, 'X'))  # arms
+    box(inte, (DX + sx * 0.10, -0.46, 0.68), (0.15, 0.50, 0.14), 'Interior', bevel=0.02)                                      # thighs
+# partition: lower panel + frame posts (glass is in the glass object)
+box(inte, (0, 0.10, 0.62), (1.56, 0.04, 0.34), 'Interior')
+for px in (-0.78, 0.0, 0.78):
+    box(inte, (px, 0.10, 1.15), (0.04, 0.05, 0.82), 'Interior')
+box(inte, (0, 0.10, 1.57), (1.60, 0.05, 0.04), 'Interior')
+# rear-facing jump seats against the partition
+for sx in (1, -1):
+    box(inte, (sx * 0.30, 0.20, 0.82), (0.44, 0.06, 0.55), 'Interior', bevel=0.02)
+    box(inte, (sx * 0.30, 0.42, 0.56), (0.44, 0.40, 0.08), 'Interior', bevel=0.02)
+# forward-facing rear bench
+box(inte, (0, 1.62, 0.54), (1.24, 0.52, 0.16), 'Interior', bevel=0.04)
+box(inte, (0, 1.90, 0.97), (1.24, 0.10, 0.66), 'Interior', bevel=0.04)
+box(inte, (-0.31, 1.62, 0.62), (0.02, 0.45, 0.02), 'Interior')
+# interior roof light
+box(inte, (0.0, 0.85, 1.655), (0.34, 0.14, 0.02), 'Emit_Window', bevel=0.005)
 inte_ob = inte.to_object(smooth_angle=45)
 
 # ---------------------------------------------------------------- TAXI sign (own object)
 sign = Part('taxi_sign', ['Emit_Sign', 'Trim'])
-SW, SD, SH = 0.76, 0.22, 0.13
-SZ = ROOF + SH / 2 - 0.005
-SY = -0.45
+SW, SD, SH = 0.94, 0.27, 0.16
+SZ = ROOF - 0.03 + SH / 2
+SY = -0.40
 box(sign, (0, SY, SZ), (SW, SD, SH), 'Emit_Sign', bevel=0.03, segs=2)
-box(sign, (0, SY, ROOF - 0.002), (SW * 0.9, SD * 0.86, 0.012), 'Trim')
+box(sign, (0, SY, ROOF - 0.03), (SW * 0.9, SD * 0.86, 0.012), 'Trim')
 for ysgn, rz in ((-1, Matrix.Rotation(math.pi / 2, 3, 'X')),
                  (1, Matrix.Rotation(math.pi, 3, 'Z') @ Matrix.Rotation(math.pi / 2, 3, 'X'))):
-    text_mesh(sign, 'TAXI', (0, SY + ysgn * (SD / 2 + 0.001), SZ), 0.105, 'Trim', depth=0.008, rot=rz)
+    text_mesh(sign, 'TAXI', (0, SY + ysgn * (SD / 2 + 0.001), SZ), 0.135, 'Trim', depth=0.008, rot=rz)
 sign_ob = sign.to_object(smooth_angle=60)
 sign_ob.name = 'taxi_sign'
 

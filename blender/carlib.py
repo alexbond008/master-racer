@@ -822,6 +822,7 @@ def verify_and_render(car_id, glb, focus=None, cam_dist=1.0):
         if o.type == 'MESH' and o.name.startswith('wheel'):
             print(o.name, 'origin', tuple(round(x, 3) for x in o.matrix_world.translation))
     for mt in bpy.data.materials:
+        mt.use_backface_culling = True
         print('MAT', mt.name, getattr(mt, 'blend_method', None), getattr(mt, 'surface_render_method', None))
     sc = bpy.context.scene
     # lights & ground
@@ -886,11 +887,16 @@ def verify_and_render(car_id, glb, focus=None, cam_dist=1.0):
         cd.lens = 55 if nm not in ('top',) else 45
         co = bpy.data.objects.new('cam', cd)
         sc.collection.objects.link(co)
-        hide = vv[0] == 'hide'
+        hide = vv[0] == 'hide' or nm.startswith('cut')
         for o_ in sc.objects:
             if o_.type == 'MESH' and (o_.name.split('.')[0] in ('body', 'glass', 'spoiler', 'mirrors')):
                 o_.hide_render = hide
-        if hide:
+        if hide and vv[0] == 'custom':
+            v = vv[1]
+            co.location = (v[0], v[1], v[2])
+            tgt = Vector((v[3], v[4], v[5]))
+            cd.lens = v[6] if len(v) > 6 else 40
+        elif hide:
             co.location = (c.x + 0.001, c.y - 0.6, 3.4)
             cd.lens = 38
             tgt = Vector((c.x, c.y, 0.5))

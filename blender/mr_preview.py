@@ -63,6 +63,17 @@ V = {
     'f34r': Vector((-1, -1.15, 0.5)), 'r34l': Vector((1, 1.15, 0.5)), 'low': Vector((1.0, -0.8, 0.12)),
 }
 for v in views:
+    if v.startswith('c:'):
+        tx, ty, tz, dx, dy, dz, dist = [float(t) for t in v[2:].split(',')]
+        tgt = Vector((tx, ty, tz)); d = Vector((dx, dy, dz)).normalized()
+        cam.location = tgt + d * dist
+        q = (tgt - cam.location).to_track_quat('-Z', 'Y')
+        v = 'zoom' + str(abs(hash(v)) % 1000)
+        cam.rotation_euler = q.to_euler()
+        scn.render.filepath = f'{ROOT}/blender/previews/{vid}_{v}.png'
+        bpy.ops.render.render(write_still=True)
+        print('rendered', scn.render.filepath)
+        continue
     d = V[v].normalized()
     cam.location = c + d * D
     q = (c - cam.location).to_track_quat('-Z', 'Y')

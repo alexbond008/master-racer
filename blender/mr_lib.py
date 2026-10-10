@@ -22,7 +22,7 @@ PRESETS = {
     'Rim': ((0.72, 0.73, 0.75, 1), 0.3, 0.9, None, 0),
     'Chrome': ((0.85, 0.85, 0.88, 1), 0.08, 1.0, None, 0),
     'Trim': ((0.025, 0.025, 0.027, 1), 0.6, 0.0, None, 0),
-    'Interior': ((0.14, 0.13, 0.12, 1), 0.8, 0.0, None, 0),
+    'Interior': ((0.20, 0.19, 0.18, 1), 0.8, 0.0, None, 0),
     'HeadLight': ((1, 0.95, 0.8, 1), 0.1, 0.0, (1, 0.93, 0.75), 4.0),
     'TailLight': ((0.9, 0.02, 0.02, 1), 0.2, 0.0, (1, 0.03, 0.02), 4.0),
     'Plate': ((0.95, 0.75, 0.08, 1), 0.4, 0.0, None, 0),
@@ -523,3 +523,16 @@ def wheel_ring(part, c, r, tube, m, rot, seg=18, tseg=6):
     """torus (steering wheel) about local X, then rotated by rot"""
     prof = [(r + tube * math.cos(2 * math.pi * i / tseg), tube * math.sin(2 * math.pi * i / tseg)) for i in range(tseg)]
     revolve(part, c, prof, m, seg=seg, closed=True, rot=rot)
+
+
+def cutter_box(name, lo, hi):
+    me = bpy.data.meshes.new(name)
+    b = bmesh.new()
+    bmesh.ops.create_cube(b, size=1.0)
+    bmesh.ops.scale(b, vec=Vector((hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2])), verts=b.verts)
+    bmesh.ops.translate(b, vec=Vector(((hi[0] + lo[0]) / 2, (hi[1] + lo[1]) / 2, (hi[2] + lo[2]) / 2)), verts=b.verts)
+    b.to_mesh(me)
+    b.free()
+    ob = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(ob)
+    return ob

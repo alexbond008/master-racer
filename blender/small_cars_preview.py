@@ -90,7 +90,22 @@ sc.camera = cam
 cam_d.lens = 45
 
 D = max(L * 1.55, 4.5)
+if 'topopen' in views:
+    import bmesh
+    for ob in list(bpy.context.scene.objects):
+        if ob.name == 'interior':
+            bm = bmesh.new(); bm.from_mesh(ob.data)
+            dele = [f for f in bm.faces if f.calc_center_median().z > 1.22 and abs(f.normal.z) > 0.2 and f.calc_center_median().z > 1.0 + 0.0 and len(f.verts) > 0 and max(v.co.z for v in f.verts) - min(v.co.z for v in f.verts) < 0.2 and f.calc_area() > 0.0 and f.calc_center_median().z > 1.22]
+            bmesh.ops.delete(bm, geom=dele, context='FACES')
+            bm.to_mesh(ob.data); bm.free()
+        if ob.name in ('body',):
+            bm = bmesh.new(); bm.from_mesh(ob.data)
+            dele = [f for f in bm.faces if f.calc_center_median().z > 0.95 and f.normal.z > 0.25]
+            bmesh.ops.delete(bm, geom=dele, context='FACES')
+            bm.to_mesh(ob.data); bm.free()
 poses = {
+    'low34': (Vector((0.80, -0.55, 0.16)), Vector((0, ctr.y, 1.0))),
+    'topopen': (Vector((0.0, -0.08, 1.0)), ctr),
     'front34': (Vector((0.62, -0.78, 0.30)), ctr),
     'rear34': (Vector((-0.62, 0.78, 0.30)), ctr),
     'front34r': (Vector((-0.62, -0.78, 0.30)), ctr),
@@ -107,7 +122,9 @@ for v in views:
     direction = tgt - cam.location
     cam.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
     cam_d.lens = 70 if v in ('side', 'top', 'front', 'rear') else 50
-    if v == 'top':
+    if v == 'low34':
+        cam_d.lens = 40
+    if v in ('top', 'topopen'):
         cam_d.lens = 50
         cam.location = tgt + d.normalized() * L * 2.1
         cam.rotation_euler = (tgt - cam.location).to_track_quat('-Z', 'Y').to_euler()
